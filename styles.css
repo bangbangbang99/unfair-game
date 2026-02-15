@@ -1,0 +1,252 @@
+﻿:root {
+  --bg-spot: #20344f;
+  --bg-main: #0b1220;
+  --panel: rgba(15, 23, 42, 0.72);
+  --panel-strong: rgba(15, 23, 42, 0.9);
+  --line: rgba(148, 163, 184, 0.3);
+  --text: #e2e8f0;
+  --muted: #94a3b8;
+  --accent: #f59e0b;
+  --accent-2: #22d3ee;
+  --shadow: 0 18px 48px rgba(2, 6, 23, 0.45);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  color: var(--text);
+  background:
+    radial-gradient(85vw 65vh at 8% 8%, var(--bg-spot), transparent 65%),
+    radial-gradient(90vw 60vh at 95% 100%, var(--bg-main), #020617 70%);
+  font-family: "Pretendard", "Noto Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+}
+
+.app {
+  width: min(1260px, 96vw);
+  margin: 18px auto 28px;
+}
+
+.topbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: end;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.eyebrow {
+  margin: 0 0 6px;
+  color: var(--muted);
+  letter-spacing: 0.16em;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+h1 {
+  margin: 0;
+  font-size: clamp(24px, 3vw, 38px);
+  line-height: 1.15;
+}
+
+.theme-pill {
+  padding: 10px 14px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.2), rgba(34, 211, 238, 0.18));
+  border: 1px solid var(--line);
+  color: #f8fafc;
+  font-weight: 700;
+  box-shadow: var(--shadow);
+  white-space: nowrap;
+}
+
+.hud {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.stat {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 12px 14px;
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(10px);
+}
+
+.stat span {
+  display: block;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.stat strong {
+  font-size: 30px;
+  line-height: 1.15;
+}
+
+.controls-inline label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 7px;
+  color: #cbd5e1;
+  font-weight: 600;
+}
+
+.boost-input {
+  width: 72px;
+  height: 32px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel-strong);
+  color: var(--text);
+  text-align: center;
+  font-weight: 700;
+}
+
+.controls {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+button {
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: linear-gradient(180deg, rgba(51, 65, 85, 0.75), rgba(30, 41, 59, 0.95));
+  color: var(--text);
+  padding: 10px 16px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+}
+
+button:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.07);
+}
+
+#unfairBtn {
+  background: linear-gradient(180deg, rgba(127, 29, 29, 0.75), rgba(69, 10, 10, 0.95));
+  border-color: rgba(248, 113, 113, 0.38);
+}
+
+.content-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(280px, 1fr);
+  gap: 14px;
+}
+
+.stage-wrap,
+.ranking {
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  overflow: hidden;
+  background: var(--panel);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(10px);
+}
+
+.stage-wrap {
+  position: relative;
+}
+
+canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  touch-action: none;
+}
+
+.overlay {
+  position: absolute;
+  inset: 0;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  background: rgba(2, 6, 23, 0.55);
+}
+
+.overlay.show {
+  display: flex;
+}
+
+.overlay-card {
+  width: min(520px, 90%);
+  background: rgba(15, 23, 42, 0.88);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 18px;
+  text-align: center;
+}
+
+.overlay-card h2 {
+  margin: 0 0 8px;
+  color: var(--accent);
+}
+
+.overlay-card p {
+  margin: 0;
+  color: #cbd5e1;
+}
+
+.ranking {
+  padding: 16px 16px 12px;
+}
+
+.ranking h2 {
+  margin: 0 0 10px;
+  font-size: 20px;
+}
+
+#rankingList {
+  margin: 0;
+  padding-left: 22px;
+  display: grid;
+  gap: 8px;
+}
+
+#rankingList li {
+  color: #dbeafe;
+  font-weight: 650;
+}
+
+.ranking-help {
+  margin: 12px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+@media (max-width: 980px) {
+  .hud {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .content-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 620px) {
+  .topbar {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .hud {
+    grid-template-columns: 1fr;
+  }
+
+  .controls {
+    flex-wrap: wrap;
+  }
+
+  .stat strong {
+    font-size: 26px;
+  }
+}

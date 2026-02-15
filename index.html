@@ -1,0 +1,72 @@
+﻿<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>절대 못 깨는 불합리 Pong</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <main class="app">
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">UNFAIR PONG</p>
+        <h1>절대 깰 수 없는 불합리한 Pong</h1>
+      </div>
+      <div class="theme-pill" id="themeName">로딩중</div>
+    </header>
+
+    <section class="hud" aria-label="게임 정보">
+      <article class="stat">
+        <span>이번 판 반환</span>
+        <strong id="returnCount">0</strong>
+      </article>
+      <article class="stat">
+        <span>내 최고 기록</span>
+        <strong id="bestCount">0</strong>
+      </article>
+      <article class="stat">
+        <span>현재 속도 배수</span>
+        <strong id="speedMult">x1</strong>
+      </article>
+      <article class="stat controls-inline">
+        <span>가속 규칙</span>
+        <label>
+          <input id="boostInput" class="boost-input" type="number" min="1.01" step="0.01" value="1.10" />
+          배씩 빨라짐
+        </label>
+      </article>
+    </section>
+
+    <section class="controls" aria-label="게임 제어">
+      <button id="startBtn" type="button">START</button>
+      <button id="restartBtn" type="button">RESTART</button>
+      <button id="unfairBtn" type="button">더 킹받게</button>
+      <button id="exportRankingBtn" type="button">Export Ranking</button>
+      <button id="importRankingBtn" type="button">Import Ranking</button>
+      <input id="importRankingInput" type="file" accept="application/json,.json" hidden />
+    </section>
+
+    <section class="content-grid">
+      <section class="stage-wrap">
+        <canvas id="gameCanvas" width="960" height="540" aria-label="Pong 게임 캔버스"></canvas>
+
+        <div id="overlay" class="overlay show">
+          <div class="overlay-card">
+            <h2 id="overlayTitle">START를 눌러 시작</h2>
+            <p id="overlayText">PC: 화살표/W/S, 마우스 이동 | 모바일: 터치 드래그</p>
+          </div>
+        </div>
+      </section>
+
+      <aside class="ranking" aria-label="랭킹">
+        <h2>반환 횟수 랭킹</h2>
+        <ol id="rankingList"></ol>
+        <p class="ranking-help">게임 오버 시 자동 저장. 이 브라우저 기준으로만 저장됩니다.</p>
+      </aside>
+    </section>
+  </main>
+
+  <script src="game.js"></script>
+</body>
+</html>
