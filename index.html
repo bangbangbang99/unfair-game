@@ -3,35 +3,23 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>UNFAIR PONG // HACKED CRT</title>
+  <title>UNFAIR PONG // QUANTUM CONSOLE</title>
 
-  <meta property="og:title" content="UNFAIR PONG // HACKED CRT" />
+  <meta property="og:title" content="UNFAIR PONG // QUANTUM CONSOLE" />
   <meta property="og:description" content="네온에 절여진 불합리 퐁. 버틸 수 있으면 버텨봐." />
   <meta property="og:image" content="https://unfair-game.netlify.app/og.png" />
   <meta property="og:type" content="website" />
 
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Chakra+Petch:wght@500;700;800&family=Fira+Code:wght@500;700&family=JetBrains+Mono:wght@500;700;800&family=Noto+Sans+KR:wght@700;900&family=Orbitron:wght@700;800&family=Press+Start+2P&family=Rubik+Glitch&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Chakra+Petch:wght@500;700;800&family=JetBrains+Mono:wght@500;700;800&family=Noto+Sans+KR:wght@700;900&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body class="theme-cyberpunk">
-  <div class="bg-shapes" aria-hidden="true">
-    <span class="shape triangle tri-a"></span>
-    <span class="shape triangle tri-b"></span>
-    <span class="shape triangle tri-c"></span>
-    <span class="shape cross cross-a"></span>
-    <span class="shape cross cross-b"></span>
-    <span class="shape cross cross-c"></span>
-  </div>
-
-  <div class="crt-scanlines" aria-hidden="true"></div>
-  <div class="crt-vignette" aria-hidden="true"></div>
-
   <main class="app game-console" id="appRoot">
     <header class="topbar">
       <div class="title-wrap">
-        <p class="eyebrow">HACKED CRT BROADCAST // CHANNEL 404</p>
+        <p class="eyebrow">HIGH-FIDELITY SCI-FI CONSOLE</p>
         <h1 id="mainTitle" class="main-title" data-text="UNFAIR PONG">UNFAIR PONG</h1>
         <p class="subtitle">절대 못 깨는 불합리한 Pong</p>
       </div>
@@ -80,7 +68,6 @@
       <section class="stage-wrap" aria-label="게임 스테이지">
         <div class="canvas-shell">
           <canvas id="gameCanvas" width="960" height="540" aria-label="Pong 게임 캔버스"></canvas>
-          <div class="arena-noise" aria-hidden="true"></div>
           <div id="chaosEmoji" class="chaos-emoji" aria-hidden="true"></div>
           <div id="chaosHint" class="chaos-hint" aria-hidden="true">CONTROL INVERTED</div>
         </div>
@@ -94,7 +81,7 @@
       </section>
 
       <aside class="ranking" aria-label="랭킹">
-        <h2>BROKEN LEADERBOARD</h2>
+        <h2>LEADERBOARD</h2>
         <ol id="rankingList"></ol>
         <p class="ranking-help">게임 오버 시 자동 저장. 브라우저 로컬 저장소 기준.</p>
       </aside>
