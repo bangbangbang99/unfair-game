@@ -5,6 +5,8 @@
   if (!ctx) return;
 
   const appRoot = document.getElementById("appRoot");
+  const mainTitle = document.getElementById("mainTitle");
+
   const returnCountEl = document.getElementById("returnCount");
   const bestCountEl = document.getElementById("bestCount");
   const speedMultEl = document.getElementById("speedMult");
@@ -22,7 +24,7 @@
   const importRankingInput = document.getElementById("importRankingInput");
 
   const overlay = document.getElementById("overlay");
-  const overlayCard = overlay.querySelector(".overlay-card");
+  const overlayCard = overlay ? overlay.querySelector(".overlay-card") : null;
   const overlayTitle = document.getElementById("overlayTitle");
   const overlayText = document.getElementById("overlayText");
 
@@ -33,6 +35,7 @@
 
   const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
   const random = (min, max) => Math.random() * (max - min) + min;
+  const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
 
   const state = {
     running: false,
@@ -45,235 +48,195 @@
     chaosMode: false,
     controlsInvertedUntil: 0,
     nextChaosAt: 0,
-    chaosFlashHideAt: 0
+    chaosFlashHideAt: 0,
+    impactTimer: 0,
+    titleTimer: 0
   };
 
-  const player = { x: 26, y: H / 2 - 44, w: 12, h: 88, speed: 600 };
-  const cpu = { x: W - 44, y: H / 2 - 124, w: 18, h: 248, speed: 650, aim: 0.86 };
-  const ball = { x: W / 2, y: H / 2, r: 8, vx: 0, vy: 0, baseSpeed: 320 };
+  const player = { x: 30, y: H / 2 - 48, w: 12, h: 96, speed: 640 };
+  const cpu = { x: W - 48, y: H / 2 - 126, w: 18, h: 252, speed: 670, aim: 0.86 };
+  const ball = {
+    x: W / 2,
+    y: H / 2,
+    size: 14,
+    vx: 0,
+    vy: 0,
+    baseSpeed: 335,
+    mode: "pixel",
+    emoji: "👾",
+    sprite: "moon"
+  };
 
   const keys = { up: false, down: false };
   let pointerActive = false;
   let pointerY = H / 2;
+  let unfairHovering = false;
 
   const taunts = [
-    "또 졌네? 컨트롤 어디 감?",
-    "공보다 멘탈이 더 빨리 튄다",
-    "CPU가 지금 웃고 있음",
-    "반응속도보다 핑계속도가 빠름",
-    "다음 판도 결과는 거의 정해짐"
+    "또 졌네? 채널을 바꿔도 결과는 같아.",
+    "CPU가 지금 실시간으로 비웃는 중.",
+    "반응속도보다 핑계속도가 빨랐다.",
+    "패배 로그가 또 한 줄 추가됐다.",
+    "손이 느린 게 아니라 세상이 빠른 거다."
   ];
-  const trollEmojis = ["🤡", "💀", "😵‍💫", "🙃", "🫠", "👹"];
+
+  const trollEmojis = ["🤡", "💀", "🫠", "👹", "🙃", "😵‍💫"];
+  const glitchBallEmojis = ["👾", "🛰️", "⚠️", "💥", "🧿", "😈"];
+
+  const moonSprite = [
+    "00011100",
+    "00111110",
+    "01112211",
+    "01111111",
+    "01111111",
+    "01112211",
+    "00111110",
+    "00011100"
+  ];
+
+  const tteokgukSprite = [
+    "00033300",
+    "00311130",
+    "03121113",
+    "03111113",
+    "03141113",
+    "03111113",
+    "00355530",
+    "00033300"
+  ];
 
   const trailParticles = [];
   const impactParticles = [];
 
   const noiseTex = document.createElement("canvas");
-  noiseTex.width = 220;
-  noiseTex.height = 220;
+  noiseTex.width = 180;
+  noiseTex.height = 180;
   const noiseCtx = noiseTex.getContext("2d");
   let noisePattern = null;
   let noiseUpdatedAt = 0;
 
-  const baseVars = {
-    "--font-ui": "\"Noto Sans KR\", sans-serif",
-    "--font-kick": "\"Black Han Sans\", \"Noto Sans KR\", sans-serif",
-    "--font-number": "\"Press Start 2P\", ui-monospace, monospace",
-    "--bg-base": "#09060f",
-    "--bg-a": "#291654",
-    "--bg-b": "#130a27",
-    "--text-main": "#f2ebff",
-    "--text-sub": "#bca9d7",
-    "--text-dim": "#86749f",
-    "--line-main": "rgba(0,255,255,0.62)",
-    "--line-sub": "rgba(255,0,255,0.38)",
-    "--glow-main": "rgba(0,255,255,0.26)",
-    "--glow-sub": "rgba(255,0,255,0.22)",
-    "--panel-bg": "rgba(16,9,31,0.78)",
-    "--panel-strong": "rgba(10,6,20,0.92)",
-    "--stat-bg": "rgba(15,9,30,0.82)",
-    "--accent-1": "#00ffff",
-    "--accent-2": "#ff00ff",
-    "--accent-3": "#ccff00",
-    "--danger": "#ff3f76",
-    "--stage-border-main": "rgba(0,255,255,0.76)",
-    "--stage-border-sub": "rgba(255,0,255,0.58)",
-    "--stage-glow": "rgba(0,255,255,0.2)",
-    "--start-bg": "rgba(0,255,255,0.24)",
-    "--start-line": "rgba(0,255,255,0.72)",
-    "--chaos-bg": "rgba(255,0,65,0.26)",
-    "--chaos-line": "rgba(255,25,88,0.86)",
-    "--app-shift-x": "0px",
-    "--app-shift-y": "0px"
-  };
-
-  const baseCanvas = {
-    ambient: "#050505",
-    paddlePlayer: "#ff00ff",
-    paddleCpu: "#00ffff",
-    ball: "#ccff00",
-    trail: "rgba(204,255,0,0.84)",
-    net: "rgba(0,255,255,0.45)",
-    scoreGhost: "rgba(255,255,255,0.08)",
-    bloomPlayer: "rgba(255,0,255,0.28)",
-    bloomCpu: "rgba(0,255,255,0.28)",
-    bloomBall: "rgba(204,255,0,0.32)",
-    ballStyle: "orb",
-    emoji: "😈"
-  };
-
   const themeDefs = {
-    "theme-cyberpunk": { label: "CYBERPUNK GLITCH", badge: "DEFAULT", vars: {}, canvas: {} },
-    "theme-seollal": {
-      label: "SEOLLAL CYBER",
-      badge: "SIMULATION ON",
-      vars: {
-        "--bg-base": "#090909",
-        "--bg-a": "#161616",
-        "--bg-b": "#101010",
-        "--text-main": "#fff5d6",
-        "--text-sub": "#d5c18d",
-        "--text-dim": "#9f8d63",
-        "--line-main": "rgba(255,215,0,0.76)",
-        "--line-sub": "rgba(232,62,62,0.56)",
-        "--glow-main": "rgba(255,215,0,0.2)",
-        "--glow-sub": "rgba(0,168,107,0.16)",
-        "--panel-bg": "rgba(16,16,16,0.8)",
-        "--panel-strong": "rgba(11,11,11,0.92)",
-        "--stat-bg": "rgba(18,18,18,0.82)",
-        "--accent-1": "#ffd700",
-        "--accent-2": "#e83e3e",
-        "--accent-3": "#00a86b",
-        "--danger": "#e83e3e",
-        "--stage-border-main": "rgba(255,215,0,0.9)",
-        "--stage-border-sub": "rgba(0,168,107,0.64)",
-        "--stage-glow": "rgba(255,215,0,0.22)",
-        "--start-bg": "rgba(232,62,62,0.38)",
-        "--start-line": "rgba(255,215,0,0.92)",
-        "--chaos-bg": "rgba(232,62,62,0.36)",
-        "--chaos-line": "rgba(255,215,0,0.92)"
-      },
+    "theme-cyberpunk": {
+      label: "HACKED CRT",
+      badge: "NEON FEED",
       canvas: {
-        paddlePlayer: "#e83e3e",
-        paddleCpu: "#00a86b",
-        ball: "#f8ebc8",
-        trail: "rgba(255,215,0,0.8)",
-        net: "rgba(255,215,0,0.38)",
-        scoreGhost: "rgba(255,215,0,0.09)",
-        bloomPlayer: "rgba(232,62,62,0.24)",
-        bloomCpu: "rgba(0,168,107,0.24)",
-        bloomBall: "rgba(255,215,0,0.28)",
-        ballStyle: "moon",
-        emoji: "🌕"
+        ambient: "#05000a",
+        paddlePlayer: "#ff00ff",
+        paddleCpu: "#00f3ff",
+        ball: "#ccff00",
+        ballGlow: "rgba(204,255,0,0.9)",
+        trail: "rgba(204,255,0,0.88)",
+        net: "#00f3ff",
+        netGlow: "rgba(0,243,255,0.82)",
+        ghost: "rgba(255,255,255,0.08)",
+        bloomPlayer: "rgba(255,0,255,0.26)",
+        bloomCpu: "rgba(0,243,255,0.26)",
+        bloomBall: "rgba(204,255,0,0.3)",
+        noiseAlpha: 0.11,
+        ballMode: "mixed"
+      }
+    },
+    "theme-seollal": {
+      label: "CYBER-JOSEON",
+      badge: "SEOLLAL OVERRIDE",
+      canvas: {
+        ambient: "#08010f",
+        paddlePlayer: "#ff0055",
+        paddleCpu: "#00ff9d",
+        ball: "#6effd9",
+        ballGlow: "rgba(255,0,85,0.72)",
+        trail: "rgba(0,255,157,0.9)",
+        net: "#00ff9d",
+        netGlow: "rgba(0,255,157,0.86)",
+        ghost: "rgba(255,255,255,0.09)",
+        bloomPlayer: "rgba(255,0,85,0.24)",
+        bloomCpu: "rgba(0,255,157,0.24)",
+        bloomBall: "rgba(110,255,217,0.3)",
+        noiseAlpha: 0.08,
+        ballMode: "seollal"
       }
     },
     "theme-halloween": {
-      label: "HALLOWEEN",
-      badge: "SPOOKY MODE",
-      vars: {
-        "--bg-base": "#070507",
-        "--bg-a": "#24112d",
-        "--bg-b": "#11090f",
-        "--text-main": "#fff1e2",
-        "--text-sub": "#d9c1da",
-        "--text-dim": "#a78bb0",
-        "--line-main": "rgba(255,127,17,0.78)",
-        "--line-sub": "rgba(153,84,255,0.58)",
-        "--glow-main": "rgba(255,127,17,0.24)",
-        "--glow-sub": "rgba(153,84,255,0.2)",
-        "--panel-bg": "rgba(18,11,26,0.8)",
-        "--panel-strong": "rgba(12,7,19,0.92)",
-        "--stat-bg": "rgba(16,10,24,0.82)",
-        "--accent-1": "#ff7f11",
-        "--accent-2": "#9954ff",
-        "--accent-3": "#ffc857",
-        "--danger": "#ff7f11",
-        "--stage-border-main": "rgba(255,127,17,0.84)",
-        "--stage-border-sub": "rgba(153,84,255,0.64)",
-        "--stage-glow": "rgba(255,127,17,0.22)"
-      },
+      label: "HALLOWEEN FEED",
+      badge: "PUMPKIN GLITCH",
       canvas: {
-        paddlePlayer: "#ff7f11",
-        paddleCpu: "#9954ff",
-        ball: "#ffc857",
-        trail: "rgba(255,127,17,0.82)",
-        net: "rgba(255,183,133,0.4)",
-        bloomPlayer: "rgba(255,127,17,0.24)",
-        bloomCpu: "rgba(153,84,255,0.24)",
-        bloomBall: "rgba(255,200,87,0.28)",
-        emoji: "🎃"
+        ambient: "#08030a",
+        paddlePlayer: "#ff8f00",
+        paddleCpu: "#7f46ff",
+        ball: "#ffcc55",
+        ballGlow: "rgba(255,143,0,0.8)",
+        trail: "rgba(255,170,60,0.82)",
+        net: "#ff8f00",
+        netGlow: "rgba(255,143,0,0.8)",
+        ghost: "rgba(255,255,255,0.08)",
+        bloomPlayer: "rgba(255,143,0,0.24)",
+        bloomCpu: "rgba(127,70,255,0.24)",
+        bloomBall: "rgba(255,204,85,0.28)",
+        noiseAlpha: 0.1,
+        ballMode: "mixed"
       }
     },
     "theme-christmas": {
-      label: "CHRISTMAS",
-      badge: "PIXEL SNOW",
-      vars: {
-        "--bg-base": "#070b09",
-        "--bg-a": "#10211e",
-        "--bg-b": "#0a1412",
-        "--text-main": "#eefbf3",
-        "--text-sub": "#bdd4c3",
-        "--text-dim": "#8fa997",
-        "--line-main": "rgba(80,255,184,0.78)",
-        "--line-sub": "rgba(255,77,122,0.56)",
-        "--glow-main": "rgba(80,255,184,0.24)",
-        "--glow-sub": "rgba(255,77,122,0.18)",
-        "--panel-bg": "rgba(11,21,19,0.8)",
-        "--panel-strong": "rgba(8,15,14,0.92)",
-        "--stat-bg": "rgba(11,20,18,0.82)",
-        "--accent-1": "#64ffd2",
-        "--accent-2": "#ff4d7a",
-        "--accent-3": "#d4ff8f",
-        "--danger": "#ff4d7a",
-        "--stage-border-main": "rgba(80,255,184,0.84)",
-        "--stage-border-sub": "rgba(255,77,122,0.62)",
-        "--stage-glow": "rgba(80,255,184,0.22)"
-      },
+      label: "CHRISTMAS FEED",
+      badge: "SNOWY GLITCH",
       canvas: {
-        paddlePlayer: "#ff4d7a",
+        ambient: "#030a08",
+        paddlePlayer: "#ff3c79",
         paddleCpu: "#64ffd2",
-        ball: "#d4ff8f",
-        trail: "rgba(212,255,143,0.78)",
-        net: "rgba(167,255,221,0.42)",
-        bloomPlayer: "rgba(255,77,122,0.22)",
+        ball: "#d2ff88",
+        ballGlow: "rgba(210,255,136,0.85)",
+        trail: "rgba(210,255,136,0.82)",
+        net: "#64ffd2",
+        netGlow: "rgba(100,255,210,0.8)",
+        ghost: "rgba(255,255,255,0.08)",
+        bloomPlayer: "rgba(255,60,121,0.22)",
         bloomCpu: "rgba(100,255,210,0.22)",
-        bloomBall: "rgba(212,255,143,0.3)",
-        emoji: "🎄"
+        bloomBall: "rgba(210,255,136,0.3)",
+        noiseAlpha: 0.1,
+        ballMode: "mixed"
       }
     },
     "theme-april-fools": {
       label: "APRIL FOOLS",
-      badge: "TOO CHAOTIC",
-      vars: {
-        "--font-ui": "\"Comic Sans MS\", \"Noto Sans KR\", sans-serif",
-        "--font-kick": "\"Comic Sans MS\", \"Noto Sans KR\", sans-serif",
-        "--font-number": "\"Comic Sans MS\", \"Noto Sans KR\", monospace",
-        "--app-shift-x": "1px",
-        "--app-shift-y": "-1px"
-      },
+      badge: "REALITY ERROR",
       canvas: {
-        paddlePlayer: "#ff24a9",
-        paddleCpu: "#00fff9",
-        ball: "#ffe600",
-        trail: "rgba(255,230,0,0.82)",
-        net: "rgba(255,230,0,0.46)",
-        bloomPlayer: "rgba(255,36,169,0.24)",
-        bloomCpu: "rgba(0,255,249,0.24)",
-        bloomBall: "rgba(255,230,0,0.28)",
-        emoji: "🤡"
+        ambient: "#120019",
+        paddlePlayer: "#ffe600",
+        paddleCpu: "#00fffc",
+        ball: "#ff4ac8",
+        ballGlow: "rgba(255,74,200,0.88)",
+        trail: "rgba(255,74,200,0.82)",
+        net: "#ffe600",
+        netGlow: "rgba(255,230,0,0.86)",
+        ghost: "rgba(255,255,255,0.1)",
+        bloomPlayer: "rgba(255,230,0,0.23)",
+        bloomCpu: "rgba(0,255,252,0.23)",
+        bloomBall: "rgba(255,74,200,0.33)",
+        noiseAlpha: 0.13,
+        ballMode: "emoji"
       }
     }
   };
 
   const themeClasses = Object.keys(themeDefs);
-  const managedVars = [...new Set([...Object.keys(baseVars), ...themeClasses.flatMap((k) => Object.keys(themeDefs[k].vars))])];
-  const seollalByYear = { 2025: "2025-01-29", 2026: "2026-02-17", 2027: "2027-02-06", 2028: "2028-01-26", 2029: "2029-02-13", 2030: "2030-02-03" };
+  const seollalByYear = {
+    2025: "2025-01-29",
+    2026: "2026-02-17",
+    2027: "2027-02-06",
+    2028: "2028-01-26",
+    2029: "2029-02-13",
+    2030: "2030-02-03",
+    2031: "2031-01-23",
+    2032: "2032-02-11"
+  };
+
+  let themeManager;
 
   class ThemeManager {
     constructor() {
-      this.overrideTheme = "theme-seollal";
-      this.activeClass = "theme-seollal";
-      this.canvas = { ...baseCanvas, ...themeDefs["theme-seollal"].canvas };
+      this.overrideTheme = null;
+      this.activeClass = "theme-cyberpunk";
+      this.canvas = { ...themeDefs["theme-cyberpunk"].canvas };
       this.timer = 0;
     }
 
@@ -281,6 +244,7 @@
       if (this.overrideTheme) return this.overrideTheme;
       const month = date.getMonth() + 1;
       const day = date.getDate();
+
       if (month === 4 && day === 1) return "theme-april-fools";
       if (isSeollalWindow(date, seollalByYear)) return "theme-seollal";
       if (isMonthDayInRange(date, { m: 10, d: 24 }, { m: 11, d: 2 })) return "theme-halloween";
@@ -291,14 +255,15 @@
     apply(date = new Date()) {
       const cls = this.getThemeByDate(date);
       const def = themeDefs[cls] || themeDefs["theme-cyberpunk"];
-      const vars = { ...baseVars, ...def.vars };
+
       document.body.classList.remove(...themeClasses);
       document.body.classList.add(cls);
-      for (const token of managedVars) document.documentElement.style.removeProperty(token);
-      for (const [token, value] of Object.entries(vars)) document.documentElement.style.setProperty(token, value);
+
       this.activeClass = cls;
-      this.canvas = { ...baseCanvas, ...def.canvas };
-      themeNameEl.textContent = `${def.label} · ${def.badge}`;
+      this.canvas = { ...def.canvas };
+      themeNameEl.textContent = `${def.label} // ${def.badge}`;
+
+      randomizeBallAppearance(true);
       return this.canvas;
     }
 
@@ -346,6 +311,7 @@
   }
 
   function redrawNoiseTexture() {
+    if (!noiseCtx) return;
     const image = noiseCtx.createImageData(noiseTex.width, noiseTex.height);
     for (let i = 0; i < image.data.length; i += 4) {
       const shade = Math.floor(Math.random() * 255);
@@ -359,12 +325,14 @@
   }
 
   function flashHudValue(el) {
+    if (!el) return;
     el.classList.remove("score-pop");
     void el.offsetWidth;
     el.classList.add("score-pop");
   }
 
   function setOverlay(title, text, visible, gameOver = false) {
+    if (!overlay || !overlayCard || !overlayTitle || !overlayText) return;
     overlayTitle.textContent = title;
     overlayText.textContent = text;
     overlay.classList.toggle("show", visible);
@@ -397,13 +365,32 @@
     rankingListEl.innerHTML = "";
     if (state.ranking.length === 0) {
       const li = document.createElement("li");
+      li.className = "rank-empty";
       li.textContent = "아직 기록이 없습니다.";
       rankingListEl.appendChild(li);
       return;
     }
     state.ranking.slice(0, 10).forEach((row, idx) => {
       const li = document.createElement("li");
-      li.textContent = `${idx + 1}위 - ${row.returns}회 (${row.when})`;
+      li.className = "rank-row";
+
+      const place = document.createElement("span");
+      place.className = "rank-place";
+      place.textContent = `${String(idx + 1).padStart(2, "0")} PLACE`;
+
+      const dots = document.createElement("span");
+      dots.className = "rank-dots";
+      dots.textContent = "........................";
+
+      const score = document.createElement("span");
+      score.className = "rank-score";
+      score.textContent = `${row.returns} WINS`;
+
+      const when = document.createElement("span");
+      when.className = "rank-when";
+      when.textContent = row.when;
+
+      li.append(place, dots, score, when);
       rankingListEl.appendChild(li);
     });
   }
@@ -445,7 +432,9 @@
     el.textContent = msg;
     el.style.display = "block";
     clearTimeout(showToast.timer);
-    showToast.timer = window.setTimeout(() => { el.style.display = "none"; }, 1400);
+    showToast.timer = window.setTimeout(() => {
+      el.style.display = "none";
+    }, 1400);
   }
 
   function getBoost() {
@@ -455,17 +444,47 @@
     return defaultBoost;
   }
 
+  function randomizeBallAppearance(force = false) {
+    const ballMode = themeManager ? themeManager.canvas.ballMode : "mixed";
+
+    if (ballMode === "seollal") {
+      ball.mode = "sprite";
+      ball.sprite = Math.random() < 0.5 ? "tteokguk" : "moon";
+      ball.size = 16;
+      return;
+    }
+
+    if (ballMode === "emoji") {
+      ball.mode = "emoji";
+      ball.emoji = pick(glitchBallEmojis);
+      ball.size = 16;
+      return;
+    }
+
+    if (!force && Math.random() < 0.68) {
+      ball.mode = "pixel";
+      ball.size = 14;
+    } else {
+      ball.mode = Math.random() < 0.55 ? "pixel" : "emoji";
+      ball.size = ball.mode === "emoji" ? 16 : 14;
+      if (ball.mode === "emoji") ball.emoji = pick(glitchBallEmojis);
+    }
+  }
+
   function resetServe(direction = (Math.random() < 0.65 ? -1 : 1), resetRun = false) {
     player.y = H / 2 - player.h / 2;
     cpu.y = H / 2 - cpu.h / 2;
     ball.x = W / 2;
     ball.y = H / 2;
+
     if (resetRun) state.returnCount = 0;
     state.speedMultiplier = 1;
     updateHud();
+
     const angle = random(-0.52, 0.52);
     ball.vx = Math.cos(angle) * ball.baseSpeed * direction;
     ball.vy = Math.sin(angle) * ball.baseSpeed;
+    randomizeBallAppearance();
   }
 
   function startGame() {
@@ -494,27 +513,27 @@
   function emitTrailParticles() {
     for (let i = 0; i < 3; i += 1) {
       trailParticles.push({
-        x: ball.x + random(-1.4, 1.4),
-        y: ball.y + random(-1.4, 1.4),
-        vx: -ball.vx * 0.02 + random(-18, 18),
-        vy: -ball.vy * 0.02 + random(-18, 18),
-        life: random(0.2, 0.45),
-        maxLife: 0.45,
-        size: random(1.4, 3.2)
+        x: ball.x + random(-1.8, 1.8),
+        y: ball.y + random(-1.8, 1.8),
+        vx: -ball.vx * 0.018 + random(-26, 26),
+        vy: -ball.vy * 0.018 + random(-26, 26),
+        life: random(0.2, 0.44),
+        maxLife: 0.44,
+        size: random(1.8, 3.8)
       });
     }
   }
 
   function spawnImpactParticles(x, y, color) {
-    for (let i = 0; i < 10; i += 1) {
+    for (let i = 0; i < 12; i += 1) {
       impactParticles.push({
         x,
         y,
-        vx: random(-170, 170),
-        vy: random(-150, 150),
-        life: random(0.18, 0.4),
-        maxLife: 0.4,
-        size: random(1.6, 3.6),
+        vx: random(-190, 190),
+        vy: random(-170, 170),
+        life: random(0.16, 0.38),
+        maxLife: 0.38,
+        size: random(2, 4),
         color
       });
     }
@@ -525,49 +544,110 @@
       const p = trailParticles[i];
       p.x += p.vx * dt;
       p.y += p.vy * dt;
-      p.vx *= 0.94;
-      p.vy *= 0.94;
+      p.vx *= 0.93;
+      p.vy *= 0.93;
       p.life -= dt;
       if (p.life <= 0) trailParticles.splice(i, 1);
     }
+
     for (let i = impactParticles.length - 1; i >= 0; i -= 1) {
       const p = impactParticles[i];
       p.x += p.vx * dt;
       p.y += p.vy * dt;
-      p.vx *= 0.93;
-      p.vy *= 0.93;
+      p.vx *= 0.91;
+      p.vy *= 0.91;
       p.life -= dt;
       if (p.life <= 0) impactParticles.splice(i, 1);
+    }
+  }
+
+  function triggerImpactFx() {
+    if (appRoot) {
+      appRoot.classList.remove("screen-shake");
+      void appRoot.offsetWidth;
+      appRoot.classList.add("screen-shake");
+    }
+
+    clearTimeout(state.impactTimer);
+    state.impactTimer = window.setTimeout(() => {
+      if (appRoot) appRoot.classList.remove("screen-shake");
+    }, 180);
+  }
+
+  function triggerTitleGlitch() {
+    if (!mainTitle) return;
+    mainTitle.style.setProperty("--title-gx", `${random(-3.8, 3.8).toFixed(2)}px`);
+    mainTitle.style.setProperty("--title-gy", `${random(-2.6, 2.6).toFixed(2)}px`);
+    mainTitle.classList.remove("glitch-burst");
+    void mainTitle.offsetWidth;
+    mainTitle.classList.add("glitch-burst");
+    window.setTimeout(() => mainTitle.classList.remove("glitch-burst"), 230);
+  }
+
+  function startTitleGlitchLoop() {
+    clearInterval(state.titleTimer);
+    state.titleTimer = window.setInterval(triggerTitleGlitch, 3000);
+  }
+
+  function syncUnfairLabel() {
+    if (!unfairBtn) return;
+    const defaultText = unfairBtn.dataset.defaultText || "DON'T CLICK ME";
+    const hoverText = unfairBtn.dataset.hoverText || "WHY DID YOU CLICK?";
+    unfairBtn.textContent = unfairHovering ? hoverText : defaultText;
+  }
+
+  function updateUnfairJitter(clientX, clientY) {
+    if (!unfairBtn) return;
+    const rect = unfairBtn.getBoundingClientRect();
+    const cx = rect.left + rect.width / 2;
+    const cy = rect.top + rect.height / 2;
+    const dist = Math.hypot(clientX - cx, clientY - cy);
+
+    if (dist < 180) {
+      const max = dist < 90 ? 3.2 : 2.3;
+      unfairBtn.style.setProperty("--jitter-x", `${random(-max, max).toFixed(2)}px`);
+      unfairBtn.style.setProperty("--jitter-y", `${random(-max, max).toFixed(2)}px`);
+      unfairBtn.classList.add("near");
+    } else {
+      unfairBtn.style.setProperty("--jitter-x", "0px");
+      unfairBtn.style.setProperty("--jitter-y", "0px");
+      unfairBtn.classList.remove("near");
     }
   }
 
   function toggleChaosMode() {
     state.chaosMode = !state.chaosMode;
     unfairBtn.classList.toggle("active", state.chaosMode);
+
     if (state.chaosMode) {
-      unfairBtn.textContent = "MODE: ACTIVATED 😈";
       document.body.classList.add("window-vibe");
       state.nextChaosAt = performance.now() + random(400, 900);
     } else {
-      unfairBtn.textContent = "더 킹받게";
       document.body.classList.remove("window-vibe");
       state.controlsInvertedUntil = 0;
+      state.chaosFlashHideAt = 0;
       chaosEmojiEl.classList.remove("show");
       chaosHintEl.classList.remove("show");
-      state.chaosFlashHideAt = 0;
     }
+
+    syncUnfairLabel();
   }
 
   function updateChaos(now) {
     if (!state.chaosMode) return;
+
     if (now >= state.nextChaosAt) {
-      state.controlsInvertedUntil = now + 2000;
-      state.nextChaosAt = now + random(1700, 3400);
-      state.chaosFlashHideAt = now + 540;
+      state.controlsInvertedUntil = now + 1900;
+      state.nextChaosAt = now + random(1500, 3200);
+      state.chaosFlashHideAt = now + 520;
+
       chaosHintEl.classList.add("show");
-      chaosEmojiEl.textContent = trollEmojis[Math.floor(Math.random() * trollEmojis.length)];
+      chaosEmojiEl.textContent = pick(trollEmojis);
       chaosEmojiEl.classList.add("show");
+
+      triggerTitleGlitch();
     }
+
     if (state.chaosFlashHideAt > 0 && now >= state.chaosFlashHideAt) {
       chaosEmojiEl.classList.remove("show");
       chaosHintEl.classList.remove("show");
@@ -579,26 +659,34 @@
     stopGame();
     ball.vx = 0;
     ball.vy = 0;
+
     if (state.returnCount > state.bestCount) {
       state.bestCount = state.returnCount;
       flashHudValue(bestCountEl);
     }
+
     pushRanking(state.returnCount);
     updateHud();
-    const taunt = taunts[Math.floor(Math.random() * taunts.length)];
-    const emoji = trollEmojis[Math.floor(Math.random() * trollEmojis.length)];
-    setOverlay(`GAME OVER ${emoji}`, `${taunt} ${emoji}${emoji} | 이번 판 반환 ${state.returnCount}회`, true, true);
+
+    const taunt = pick(taunts);
+    const emoji = pick(trollEmojis);
+    setOverlay(`SIGNAL LOST ${emoji}`, `${taunt} | 이번 판 반환 ${state.returnCount}회`, true, true);
+  }
+
+  function ballHalf() {
+    return ball.size / 2;
   }
 
   function paddleCollision(p) {
-    const inX = ball.x + ball.r >= p.x && ball.x - ball.r <= p.x + p.w;
-    const inY = ball.y + ball.r >= p.y && ball.y - ball.r <= p.y + p.h;
+    const half = ballHalf();
+    const inX = ball.x + half >= p.x && ball.x - half <= p.x + p.w;
+    const inY = ball.y + half >= p.y && ball.y - half <= p.y + p.h;
     return inX && inY;
   }
 
   function bounceFromPaddle(p, toRight) {
     const rel = (ball.y - (p.y + p.h / 2)) / (p.h / 2);
-    const angle = rel * 0.9;
+    const angle = rel * 0.92;
     const speed = Math.hypot(ball.vx, ball.vy);
     ball.vx = Math.cos(angle) * speed * (toRight ? 1 : -1);
     ball.vy = Math.sin(angle) * speed;
@@ -606,15 +694,18 @@
 
   function updatePlayer(dt, now) {
     const invert = now < state.controlsInvertedUntil;
+
     if (pointerActive) {
       const target = invert ? H - pointerY : pointerY;
       player.y = clamp(target - player.h / 2, 0, H - player.h);
       return;
     }
+
     let dir = 0;
     if (keys.up) dir -= 1;
     if (keys.down) dir += 1;
     if (invert) dir *= -1;
+
     player.y = clamp(player.y + dir * player.speed * dt, 0, H - player.h);
   }
 
@@ -627,46 +718,56 @@
   }
 
   function updateBall(dt, canvasTheme) {
+    const half = ballHalf();
     ball.x += ball.vx * dt;
     ball.y += ball.vy * dt;
     emitTrailParticles();
 
-    if (ball.y - ball.r < 0) {
-      ball.y = ball.r;
+    if (ball.y - half < 0) {
+      ball.y = half;
       ball.vy *= -1;
     }
-    if (ball.y + ball.r > H) {
-      ball.y = H - ball.r;
+
+    if (ball.y + half > H) {
+      ball.y = H - half;
       ball.vy *= -1;
     }
 
     if (ball.vx < 0 && paddleCollision(player)) {
-      ball.x = player.x + player.w + ball.r;
+      ball.x = player.x + player.w + half;
       bounceFromPaddle(player, true);
+
       state.returnCount += 1;
       if (state.returnCount > state.bestCount) {
         state.bestCount = state.returnCount;
         flashHudValue(bestCountEl);
       }
+
       updateHud();
       flashHudValue(returnCountEl);
       spawnImpactParticles(ball.x, ball.y, canvasTheme.paddlePlayer);
+      triggerImpactFx();
+      if (Math.random() < 0.4) randomizeBallAppearance();
     }
 
     if (ball.vx > 0 && paddleCollision(cpu)) {
-      ball.x = cpu.x - ball.r;
+      ball.x = cpu.x - half;
       bounceFromPaddle(cpu, false);
+
       const boost = getBoost();
       state.speedMultiplier *= boost;
       ball.vx *= boost;
       ball.vy *= boost;
+
       updateHud();
       flashHudValue(speedMultEl);
       spawnImpactParticles(ball.x, ball.y, canvasTheme.paddleCpu);
+      triggerImpactFx();
+      if (Math.random() < 0.4) randomizeBallAppearance();
     }
 
-    if (ball.x + ball.r < 0) onGameOver();
-    if (ball.x - ball.r > W) resetServe(-1, false);
+    if (ball.x + half < 0) onGameOver();
+    if (ball.x - half > W) resetServe(-1, false);
   }
 
   function drawBloom(x, y, radius, color) {
@@ -681,39 +782,50 @@
     ctx.fillStyle = canvasTheme.ambient;
     ctx.fillRect(0, 0, W, H);
 
-    drawBloom(player.x + player.w / 2, player.y + player.h / 2, 100, canvasTheme.bloomPlayer);
-    drawBloom(cpu.x + cpu.w / 2, cpu.y + cpu.h / 2, 130, canvasTheme.bloomCpu);
-    drawBloom(ball.x, ball.y, 120, canvasTheme.bloomBall);
+    drawBloom(player.x + player.w / 2, player.y + player.h / 2, 120, canvasTheme.bloomPlayer);
+    drawBloom(cpu.x + cpu.w / 2, cpu.y + cpu.h / 2, 148, canvasTheme.bloomCpu);
+    drawBloom(ball.x, ball.y, 130, canvasTheme.bloomBall);
 
-    if (now - noiseUpdatedAt > 80) {
+    if (now - noiseUpdatedAt > 70) {
       redrawNoiseTexture();
       noiseUpdatedAt = now;
     }
+
     if (noisePattern) {
       ctx.save();
-      ctx.globalAlpha = 0.05;
+      ctx.globalAlpha = canvasTheme.noiseAlpha;
       ctx.fillStyle = noisePattern;
-      ctx.translate((now * 0.03) % noiseTex.width, (now * 0.02) % noiseTex.height);
+      ctx.translate((now * 0.032) % noiseTex.width, (now * 0.023) % noiseTex.height);
       ctx.fillRect(-noiseTex.width, -noiseTex.height, W + noiseTex.width * 2, H + noiseTex.height * 2);
       ctx.restore();
     }
 
+    if (Math.random() < 0.06) {
+      const y = random(16, H - 16);
+      ctx.save();
+      ctx.globalAlpha = 0.08;
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, y, W, random(1, 2.8));
+      ctx.restore();
+    }
+
     ctx.save();
-    ctx.globalAlpha = 0.08;
-    ctx.fillStyle = canvasTheme.scoreGhost;
+    ctx.globalAlpha = 0.1;
+    ctx.fillStyle = canvasTheme.ghost;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.font = "140px 'Press Start 2P', monospace";
-    const text = String(state.returnCount).padStart(2, "0");
-    ctx.fillText(text, W / 2, H / 2);
+    ctx.font = "120px 'JetBrains Mono', 'Fira Code', monospace";
+    ctx.fillText(String(state.returnCount).padStart(2, "0"), W / 2, H / 2);
     ctx.restore();
   }
 
   function drawNet(canvasTheme) {
     ctx.save();
     ctx.strokeStyle = canvasTheme.net;
-    ctx.lineWidth = 2;
-    ctx.setLineDash([10, 12]);
+    ctx.shadowBlur = 20;
+    ctx.shadowColor = canvasTheme.netGlow;
+    ctx.lineWidth = 3;
+    ctx.setLineDash([14, 12]);
     ctx.beginPath();
     ctx.moveTo(W / 2, 0);
     ctx.lineTo(W / 2, H);
@@ -721,7 +833,7 @@
     ctx.restore();
   }
 
-  function drawPaddle(p, color, isPlayer) {
+  function drawPaddle(p, color) {
     ctx.save();
     ctx.fillStyle = color;
     ctx.shadowBlur = 18;
@@ -729,18 +841,12 @@
     ctx.fillRect(p.x, p.y, p.w, p.h);
     ctx.shadowBlur = 0;
 
-    if (themeManager.activeClass === "theme-christmas") {
-      const stripeA = isPlayer ? "#ff4d7a" : "#64ffd2";
-      const stripeB = "rgba(255,255,255,0.88)";
-      for (let y = 0; y < p.h; y += 8) {
-        ctx.fillStyle = ((Math.floor(y / 8) + (isPlayer ? 0 : 1)) % 2 === 0) ? stripeA : stripeB;
-        ctx.fillRect(p.x, p.y + y, p.w, 4);
-      }
-    } else {
-      ctx.fillStyle = "rgba(255,255,255,0.14)";
-      for (let y = 6; y < p.h; y += 12) ctx.fillRect(p.x + 2, p.y + y, p.w - 4, 2);
+    ctx.fillStyle = "rgba(255,255,255,0.14)";
+    for (let y = 6; y < p.h; y += 12) {
+      ctx.fillRect(p.x + 2, p.y + y, p.w - 4, 2);
     }
-    ctx.strokeStyle = "rgba(10,10,10,0.46)";
+
+    ctx.strokeStyle = "rgba(0,0,0,0.45)";
     ctx.lineWidth = 2;
     ctx.strokeRect(p.x + 0.5, p.y + 0.5, p.w - 1, p.h - 1);
     ctx.restore();
@@ -750,7 +856,7 @@
     ctx.save();
     for (const p of trailParticles) {
       const alpha = clamp(p.life / p.maxLife, 0, 1);
-      ctx.globalAlpha = alpha * 0.9;
+      ctx.globalAlpha = alpha;
       ctx.fillStyle = canvasTheme.trail;
       ctx.fillRect(p.x, p.y, p.size, p.size);
     }
@@ -768,35 +874,61 @@
     ctx.restore();
   }
 
+  function drawPixelSprite(cx, cy, spriteRows, palette, pixelSize) {
+    const rows = spriteRows.length;
+    const cols = spriteRows[0].length;
+    const startX = Math.round(cx - (cols * pixelSize) / 2);
+    const startY = Math.round(cy - (rows * pixelSize) / 2);
+
+    for (let y = 0; y < rows; y += 1) {
+      const row = spriteRows[y];
+      for (let x = 0; x < cols; x += 1) {
+        const code = row[x];
+        if (code === "0") continue;
+        const color = palette[code];
+        if (!color) continue;
+        ctx.fillStyle = color;
+        ctx.fillRect(startX + x * pixelSize, startY + y * pixelSize, pixelSize, pixelSize);
+      }
+    }
+  }
+
   function drawBall(canvasTheme) {
-    if (canvasTheme.ballStyle === "moon") {
-      const moon = ctx.createRadialGradient(ball.x - 2, ball.y - 2, 1, ball.x, ball.y, ball.r + 6);
-      moon.addColorStop(0, "#fff6d8");
-      moon.addColorStop(0.7, "#f2ddb0");
-      moon.addColorStop(1, "#d3bc82");
+    if (ball.mode === "sprite") {
+      const isMoon = ball.sprite === "moon";
+      const sprite = isMoon ? moonSprite : tteokgukSprite;
+      const palette = isMoon
+        ? { "1": "#fff6d8", "2": "#ceb479" }
+        : { "1": "#fff7e2", "2": "#f1d49b", "3": "#8f5c40", "4": "#6fd681", "5": "#a27453" };
+
       ctx.save();
-      ctx.fillStyle = moon;
-      ctx.shadowBlur = 24;
-      ctx.shadowColor = "rgba(255,215,0,0.6)";
-      ctx.beginPath();
-      ctx.arc(ball.x, ball.y, ball.r + 0.8, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.shadowBlur = 0;
-      ctx.fillStyle = "rgba(140,120,80,0.24)";
-      ctx.beginPath();
-      ctx.arc(ball.x - 2, ball.y - 2, 2.1, 0, Math.PI * 2);
-      ctx.arc(ball.x + 2, ball.y + 1.5, 1.6, 0, Math.PI * 2);
-      ctx.fill();
+      ctx.shadowBlur = 20;
+      ctx.shadowColor = canvasTheme.ballGlow;
+      drawPixelSprite(ball.x, ball.y, sprite, palette, 2);
       ctx.restore();
       return;
     }
+
+    if (ball.mode === "emoji") {
+      ctx.save();
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.font = `${ball.size + 6}px "JetBrains Mono", "Fira Code", "Segoe UI Emoji", monospace`;
+      ctx.shadowBlur = 18;
+      ctx.shadowColor = canvasTheme.ballGlow;
+      ctx.fillText(ball.emoji, ball.x, ball.y + 0.5);
+      ctx.restore();
+      return;
+    }
+
+    const half = ballHalf();
     ctx.save();
+    ctx.shadowBlur = 22;
+    ctx.shadowColor = canvasTheme.ballGlow;
     ctx.fillStyle = canvasTheme.ball;
-    ctx.shadowBlur = 24;
-    ctx.shadowColor = canvasTheme.ball;
-    ctx.beginPath();
-    ctx.arc(ball.x, ball.y, ball.r, 0, Math.PI * 2);
-    ctx.fill();
+    ctx.fillRect(Math.round(ball.x - half), Math.round(ball.y - half), ball.size, ball.size);
+    ctx.fillStyle = "rgba(255,255,255,0.55)";
+    ctx.fillRect(Math.round(ball.x - half + 1), Math.round(ball.y - half + 1), Math.max(2, Math.floor(ball.size * 0.4)), 2);
     ctx.restore();
   }
 
@@ -804,22 +936,25 @@
     drawBackground(now, canvasTheme);
     drawNet(canvasTheme);
     drawTrail(canvasTheme);
-    drawPaddle(player, canvasTheme.paddlePlayer, true);
-    drawPaddle(cpu, canvasTheme.paddleCpu, false);
+    drawPaddle(player, canvasTheme.paddlePlayer);
+    drawPaddle(cpu, canvasTheme.paddleCpu);
     drawImpacts();
     drawBall(canvasTheme);
   }
 
   function loop(now) {
     if (!state.running) return;
+
     const dt = Math.min((now - state.lastTime) / 1000, 0.033);
     state.lastTime = now;
+
     updateChaos(now);
     updatePlayer(dt, now);
     updateCpu(dt);
     updateBall(dt, themeManager.canvas);
     updateParticles(dt);
     drawScene(now, themeManager.canvas);
+
     state.rafId = requestAnimationFrame(loop);
   }
 
@@ -846,22 +981,34 @@
     if (k === "arrowdown" || k === "s") keys.down = false;
   });
 
+  window.addEventListener("mousemove", (e) => {
+    updateUnfairJitter(e.clientX, e.clientY);
+  });
+
   canvas.addEventListener("mousemove", (e) => {
     pointerActive = true;
     pointerY = pointerToCanvasY(e.clientY);
   });
-  canvas.addEventListener("mouseleave", () => { pointerActive = false; });
+
+  canvas.addEventListener("mouseleave", () => {
+    pointerActive = false;
+  });
+
   canvas.addEventListener("touchstart", (e) => {
     pointerActive = true;
     pointerY = pointerToCanvasY(e.touches[0].clientY);
     e.preventDefault();
   }, { passive: false });
+
   canvas.addEventListener("touchmove", (e) => {
     pointerActive = true;
     pointerY = pointerToCanvasY(e.touches[0].clientY);
     e.preventDefault();
   }, { passive: false });
-  canvas.addEventListener("touchend", () => { pointerActive = false; });
+
+  canvas.addEventListener("touchend", () => {
+    pointerActive = false;
+  });
 
   startBtn.addEventListener("click", () => {
     if (state.running) return;
@@ -870,11 +1017,24 @@
   });
 
   restartBtn.addEventListener("click", restartGame);
+
+  unfairBtn.addEventListener("mouseenter", () => {
+    unfairHovering = true;
+    syncUnfairLabel();
+  });
+
+  unfairBtn.addEventListener("mouseleave", () => {
+    unfairHovering = false;
+    syncUnfairLabel();
+  });
+
   unfairBtn.addEventListener("click", () => {
     toggleChaosMode();
     if (!state.running) {
-      const text = state.chaosMode ? "카오스 모드 ON. 조작이 랜덤 반전됩니다." : "카오스 모드 OFF.";
-      setOverlay("THE KING-BAT-NEUN MODE", text, true, false);
+      const text = state.chaosMode
+        ? "카오스 모드 ON. 랜덤 조작 반전 + 글리치 쇼크 활성화"
+        : "카오스 모드 OFF. 시스템이 잠시 정상처럼 보입니다.";
+      setOverlay("KING-BAT-NEUN MODE", text, true, false);
     }
   });
 
@@ -893,9 +1053,11 @@
   });
 
   importRankingBtn.addEventListener("click", () => importRankingInput.click());
+
   importRankingInput.addEventListener("change", async (e) => {
     const file = e.target.files && e.target.files[0];
     if (!file) return;
+
     try {
       const parsed = JSON.parse(await file.text());
       if (!Array.isArray(parsed)) throw new Error("invalid");
@@ -912,15 +1074,21 @@
     }
   });
 
-  const themeManager = new ThemeManager();
+  themeManager = new ThemeManager();
   themeManager.apply(new Date());
-  themeManager.watchMidnight(() => drawScene(performance.now(), themeManager.canvas));
+  themeManager.watchMidnight(() => {
+    drawScene(performance.now(), themeManager.canvas);
+  });
 
   redrawNoiseTexture();
   loadRanking();
   state.bestCount = state.ranking.length > 0 ? state.ranking[0].returns : 0;
   renderRanking();
   updateHud();
-  setOverlay("START를 눌러 시작 🌕", "PC: 화살표/W/S, 마우스 이동 | 모바일: 터치 드래그", true, false);
+
+  syncUnfairLabel();
+  startTitleGlitchLoop();
+
+  setOverlay("START SIGNAL을 눌러 시작", "PC: 화살표/W/S, 마우스 이동 | 모바일: 터치 드래그", true, false);
   drawScene(performance.now(), themeManager.canvas);
 })();

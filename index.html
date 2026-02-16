@@ -3,56 +3,76 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>절대 못 깨는 불합리 Pong</title>
+  <title>UNFAIR PONG // HACKED CRT</title>
 
-  <meta property="og:title" content="절대 못 깨는 불합리 Pong 😈" />
-  <meta property="og:description" content="실력이 형편없군요. 과연 몇 번이나 버틸 수 있을까?" />
+  <meta property="og:title" content="UNFAIR PONG // HACKED CRT" />
+  <meta property="og:description" content="네온에 절여진 불합리 퐁. 버틸 수 있으면 버텨봐." />
   <meta property="og:image" content="https://unfair-game.netlify.app/og.png" />
   <meta property="og:type" content="website" />
 
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Noto+Sans+KR:wght@700;900&family=Press+Start+2P&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Chakra+Petch:wght@500;700;800&family=Fira+Code:wght@500;700&family=JetBrains+Mono:wght@500;700;800&family=Noto+Sans+KR:wght@700;900&family=Orbitron:wght@700;800&family=Press+Start+2P&family=Rubik+Glitch&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="styles.css" />
 </head>
-<body class="theme-seollal">
+<body class="theme-cyberpunk">
+  <div class="bg-shapes" aria-hidden="true">
+    <span class="shape triangle tri-a"></span>
+    <span class="shape triangle tri-b"></span>
+    <span class="shape triangle tri-c"></span>
+    <span class="shape cross cross-a"></span>
+    <span class="shape cross cross-b"></span>
+    <span class="shape cross cross-c"></span>
+  </div>
+
+  <div class="crt-scanlines" aria-hidden="true"></div>
+  <div class="crt-vignette" aria-hidden="true"></div>
+
   <main class="app" id="appRoot">
     <header class="topbar">
       <div class="title-wrap">
-        <p class="eyebrow">UNFAIR PONG / CRT BUILD</p>
-        <h1>절대 못 깨는 불합리한 PONG</h1>
+        <p class="eyebrow">HACKED CRT BROADCAST // CHANNEL 404</p>
+        <h1 id="mainTitle" class="main-title" data-text="UNFAIR PONG">UNFAIR PONG</h1>
+        <p class="subtitle">절대 못 깨는 불합리한 Pong</p>
       </div>
-      <div class="theme-pill" id="themeName" aria-live="polite">SEOLLAL THEME LOADING</div>
+      <div class="theme-pill" id="themeName" aria-live="polite">SYNCING THEME...</div>
     </header>
 
     <section class="hud" aria-label="게임 정보">
       <article class="stat">
-        <span>이번 판 반환</span>
+        <span>CURRENT RETURNS</span>
         <strong id="returnCount">0</strong>
       </article>
       <article class="stat">
-        <span>최고 기록</span>
+        <span>BEST SCORE</span>
         <strong id="bestCount">0</strong>
       </article>
       <article class="stat">
-        <span>속도 배수</span>
+        <span>SPEED MULTIPLIER</span>
         <strong id="speedMult">x1</strong>
       </article>
       <article class="stat controls-inline">
-        <span>가속 규칙</span>
+        <span>BOOST RULE</span>
         <label>
           <input id="boostInput" class="boost-input" type="number" min="1.01" step="0.01" value="1.10" />
-          배
+          X
         </label>
       </article>
     </section>
 
     <section class="controls" aria-label="게임 제어">
-      <button id="startBtn" type="button">START</button>
-      <button id="restartBtn" type="button">RESTART</button>
-      <button id="unfairBtn" type="button">더 킹받게</button>
-      <button id="exportRankingBtn" type="button">EXPORT</button>
-      <button id="importRankingBtn" type="button">IMPORT</button>
+      <button id="startBtn" type="button">START SIGNAL</button>
+      <button id="restartBtn" type="button">REBOOT ROUND</button>
+      <button
+        id="unfairBtn"
+        type="button"
+        data-default-text="DON'T CLICK ME"
+        data-hover-text="WHY DID YOU CLICK?"
+      >
+        DON'T CLICK ME
+      </button>
+      <button id="exportRankingBtn" type="button">EXPORT LOG</button>
+      <button id="importRankingBtn" type="button">IMPORT LOG</button>
       <input id="importRankingInput" type="file" accept="application/json,.json" hidden />
     </section>
 
@@ -60,23 +80,23 @@
       <section class="stage-wrap" aria-label="게임 스테이지">
         <div class="canvas-shell">
           <canvas id="gameCanvas" width="960" height="540" aria-label="Pong 게임 캔버스"></canvas>
-          <div class="crt-pass" aria-hidden="true"></div>
+          <div class="arena-noise" aria-hidden="true"></div>
           <div id="chaosEmoji" class="chaos-emoji" aria-hidden="true"></div>
           <div id="chaosHint" class="chaos-hint" aria-hidden="true">CONTROL INVERTED</div>
         </div>
 
         <div id="overlay" class="overlay show">
           <div class="overlay-card">
-            <h2 id="overlayTitle">START를 눌러 시작 🌕</h2>
+            <h2 id="overlayTitle">START SIGNAL을 눌러 시작</h2>
             <p id="overlayText">PC: 화살표/W/S, 마우스 이동 | 모바일: 터치 드래그</p>
           </div>
         </div>
       </section>
 
       <aside class="ranking" aria-label="랭킹">
-        <h2>RANKING</h2>
+        <h2>BROKEN LEADERBOARD</h2>
         <ol id="rankingList"></ol>
-        <p class="ranking-help">게임 오버 시 자동 저장됩니다. 브라우저 로컬 저장소 기준입니다.</p>
+        <p class="ranking-help">게임 오버 시 자동 저장. 브라우저 로컬 저장소 기준.</p>
       </aside>
     </section>
   </main>
