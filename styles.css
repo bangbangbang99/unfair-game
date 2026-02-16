@@ -35,6 +35,11 @@
   --core-outer: rgba(255, 0, 255, 0.28);
   --pulse-flash-a: rgba(0, 243, 255, 0.88);
   --pulse-flash-b: rgba(255, 0, 255, 0.88);
+  --impact-shake-px: 2px;
+  --vignette-focus: 42%;
+  --vignette-mid-alpha: 0.45;
+  --vignette-edge-alpha: 0.78;
+  --ui-bloom-scale: 1;
 
   --jitter-x: 0px;
   --jitter-y: 0px;
@@ -158,6 +163,13 @@ body.phase-3 {
   --glow-intensity: 0.96;
 }
 
+body.epic-mode {
+  --vignette-focus: 26%;
+  --vignette-mid-alpha: 0.72;
+  --vignette-edge-alpha: 0.96;
+  --ui-bloom-scale: 3;
+}
+
 .bg-shapes {
   position: fixed;
   inset: 0;
@@ -273,10 +285,16 @@ body.phase-3 {
   background:
     radial-gradient(
       ellipse at center,
-      transparent 42%,
-      rgba(0, 0, 0, 0.45) 72%,
-      rgba(0, 0, 0, 0.78) 100%
+      transparent var(--vignette-focus),
+      rgba(0, 0, 0, var(--vignette-mid-alpha)) 72%,
+      rgba(0, 0, 0, var(--vignette-edge-alpha)) 100%
     );
+  opacity: 0.92;
+  transition: background 1s ease, opacity 1s ease;
+}
+
+body.epic-mode .crt-vignette {
+  opacity: 1;
 }
 
 .app {
@@ -377,6 +395,38 @@ body.window-vibe .app {
   animation: phase-camera-shake 180ms steps(2, end) infinite, rgb-split 1.4s steps(2, end) infinite;
 }
 
+.game-console.epic-mode {
+  box-shadow:
+    0 0 0 2px rgba(255, 215, 0, 0.66) inset,
+    0 0 calc(34px * var(--ui-bloom-scale)) rgba(255, 215, 0, 0.9),
+    -3px 0 rgba(75, 0, 130, 0.58),
+    3px 0 rgba(255, 255, 255, 0.34);
+  filter: saturate(1.34) brightness(1.14);
+}
+
+.game-console.epic-mode .main-title,
+.game-console.epic-mode .subtitle,
+.game-console.epic-mode #themeName,
+.game-console.epic-mode .stat strong,
+.game-console.epic-mode .ranking h2,
+.game-console.epic-mode .overlay-card h2,
+.game-console.epic-mode .overlay-card p {
+  text-shadow:
+    0 0 calc(12px * var(--ui-bloom-scale)) rgba(255, 255, 255, 0.98),
+    0 0 calc(18px * var(--ui-bloom-scale)) rgba(255, 215, 0, 0.88),
+    0 0 calc(24px * var(--ui-bloom-scale)) rgba(75, 0, 130, 0.72);
+}
+
+.game-console.epic-mode .theme-pill,
+.game-console.epic-mode .stat,
+.game-console.epic-mode .ranking,
+.game-console.epic-mode .controls button,
+.game-console.epic-mode .overlay-card {
+  box-shadow:
+    0 0 calc(10px * var(--ui-bloom-scale)) rgba(255, 215, 0, 0.58),
+    0 0 calc(18px * var(--ui-bloom-scale)) rgba(75, 0, 130, 0.44);
+}
+
 .game-console.phase-glitch {
   transition-duration: 0s !important;
   animation: rgb-split 220ms steps(2, end) infinite;
@@ -404,6 +454,10 @@ body.window-vibe .app {
 
 .game-console.phase-flash-void {
   animation: phase-flash-void 190ms ease-out 1;
+}
+
+.game-console.phase-flash-god {
+  animation: phase-flash-god 210ms ease-out 1;
 }
 
 .app,
@@ -1132,18 +1186,32 @@ body.window-vibe .app {
   }
 }
 
+@keyframes phase-flash-god {
+  0% {
+    box-shadow:
+      0 0 0 2px rgba(255, 215, 0, 0.96) inset,
+      0 0 82px rgba(255, 215, 0, 0.95),
+      0 0 120px rgba(75, 0, 130, 0.7);
+  }
+  100% {
+    box-shadow:
+      0 0 0 2px rgba(255, 0, 255, 0.5) inset,
+      0 0 34px rgba(0, 243, 255, 0.4);
+  }
+}
+
 @keyframes screen-shake {
   0% {
     transform: translate(0, 0);
   }
   25% {
-    transform: translate(-2px, 2px);
+    transform: translate(calc(var(--impact-shake-px, 2px) * -1), var(--impact-shake-px, 2px));
   }
   50% {
-    transform: translate(2px, -2px);
+    transform: translate(var(--impact-shake-px, 2px), calc(var(--impact-shake-px, 2px) * -1));
   }
   75% {
-    transform: translate(-2px, -1px);
+    transform: translate(calc(var(--impact-shake-px, 2px) * -1), calc(var(--impact-shake-px, 2px) * -0.5));
   }
   100% {
     transform: translate(0, 0);

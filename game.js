@@ -45,6 +45,7 @@
     bestCount: 0,
     speedMultiplier: 1,
     phase: 0,
+    isEpicMode: false,
     lastRallySync: -1,
     ranking: [],
     chaosMode: false,
@@ -112,6 +113,7 @@
 
   const trailParticles = [];
   const impactParticles = [];
+  const starStreaks = [];
 
   const noiseTex = document.createElement("canvas");
   noiseTex.width = 180;
@@ -282,17 +284,17 @@
     },
     {
       id: 3,
-      name: "VOID/GLITCH MODE",
-      primary: "#111111",
-      secondary: "#f2f6ff",
-      bg: "#ebeff7",
-      text: "#101725",
-      glow: 0.96,
-      gridSpeedMs: 82,
-      trailLife: 2.05,
-      trailScale: 1.6,
-      spin: 2.15,
-      pulse: 2.25
+      name: "GOD MODE",
+      primary: "#ffd700",
+      secondary: "#4b0082",
+      bg: "#120616",
+      text: "#ffe7a8",
+      glow: 1,
+      gridSpeedMs: 93,
+      trailLife: 2.1,
+      trailScale: 2,
+      spin: 2.18,
+      pulse: 2.35
     }
   ];
 
@@ -380,6 +382,17 @@
       this.currentTempo = 66;
       this.targetTempo = 66;
       this.targetFreq = 44;
+      this.arpStep = 0;
+
+      this.epicEnabled = false;
+      this.epicGain = null;
+      this.epicFilter = null;
+      this.epicConvolver = null;
+      this.epicWetGain = null;
+      this.epicVoices = [];
+      this.epicChordRoots = [55, 52, 58, 49];
+      this.epicChordIndex = 0;
+      this.epicNextChordAt = 0;
     }
 
     ensureContext() {
@@ -452,11 +465,38 @@
       return buf;
     }
 
+    createReverbImpulse(seconds = 2.8, decay = 3.1) {
+      if (!this.ctx) return null;
+      const sampleRate = this.ctx.sampleRate || 44100;
+      const len = Math.floor(sampleRate * seconds);
+      const impulse = this.ctx.createBuffer(2, len, sampleRate);
+
+      for (let c = 0; c < 2; c += 1) {
+        const data = impulse.getChannelData(c);
+        for (let i = 0; i < len; i += 1) {
+          const t = i / len;
+          const env = Math.pow(1 - t, decay);
+          data[i] = random(-1, 1) * env * (1 - c * 0.05);
+        }
+      }
+      return impulse;
+    }
+
+    createPannerNode(pan = 0) {
+      if (!this.ctx) return null;
+      if (typeof this.ctx.createStereoPanner === "function") {
+        const node = this.ctx.createStereoPanner();
+        node.pan.value = clamp(pan, -1, 1);
+        return node;
+      }
+      return this.ctx.createGain();
+    }
+
     setProgress(rallyCount, phase) {
       this.rally = Math.max(0, rallyCount || 0);
       this.phase = clamp(phase || 0, 0, 3);
       const intensity = clamp(this.rally / 24, 0, 1);
-      this.targetTempo = 66 + intensity * 58 + this.phase * 3.5;
+      this.targetTempo = 66 + intensity * 58;
       this.targetFreq = 43 + intensity * 17 + this.phase * 2.2;
 
       if (!this.ctx || !this.droneOscA || !this.droneOscB) return;
@@ -465,6 +505,7 @@
       this.droneOscB.frequency.setTargetAtTime(this.targetFreq * 0.506, t, 0.26);
       this.droneFilter.frequency.setTargetAtTime(120 + intensity * 210 + this.phase * 36, t, 0.25);
       this.musicBus.gain.setTargetAtTime(0.56 + intensity * 0.25 + this.phase * 0.05, t, 0.25);
+      if (this.epicFilter) this.epicFilter.frequency.setTargetAtTime(1700 + this.phase * 180, t, 0.22);
     }
 
     startBgm() {
@@ -520,7 +561,71 @@
       this.droneOscA.start(t);
       this.droneOscB.start(t);
 
+      this.setupEpicLayer();
+      this.disableEpicLayer(true);
+
       this.scheduleBeatLoop();
+    }
+
+    setupEpicLayer() {
+      if (!this.ctx || this.epicVoices.length > 0) return;
+      const c = this.ctx;
+
+      this.epicGain = c.createGain();
+      this.epicGain.gain.value = 0.0001;
+
+      this.epicFilter = c.createBiquadFilter();
+      this.epicFilter.type = "lowpass";
+      this.epicFilter.frequency.value = 1850;
+      this.epicFilter.Q.value = 0.7;
+
+      this.epicConvolver = c.createConvolver();
+      this.epicConvolver.buffer = this.createReverbImpulse(3.1, 3.2);
+
+      const epicDry = c.createGain();
+      epicDry.gain.value = 0.4;
+      this.epicWetGain = c.createGain();
+      this.epicWetGain.gain.value = 0.65;
+
+      this.epicFilter.connect(this.epicGain);
+      this.epicGain.connect(epicDry);
+      this.epicGain.connect(this.epicConvolver);
+      this.epicConvolver.connect(this.epicWetGain);
+      epicDry.connect(this.musicBus);
+      this.epicWetGain.connect(this.musicBus);
+
+      const defs = [
+        { ratio: 1, detune: -18, pan: -0.9, gain: 0.1, type: "sawtooth" },
+        { ratio: 1, detune: 18, pan: 0.9, gain: 0.1, type: "sawtooth" },
+        { ratio: 1.5, detune: -9, pan: -0.58, gain: 0.085, type: "sawtooth" },
+        { ratio: 1.5, detune: 9, pan: 0.58, gain: 0.085, type: "sawtooth" },
+        { ratio: 2, detune: -5, pan: -0.22, gain: 0.076, type: "sawtooth" },
+        { ratio: 2, detune: 5, pan: 0.22, gain: 0.076, type: "sawtooth" },
+        { ratio: 0.5, detune: 0, pan: 0, gain: 0.062, type: "triangle" }
+      ];
+
+      const startAt = c.currentTime;
+      for (const def of defs) {
+        const osc = c.createOscillator();
+        osc.type = def.type;
+        osc.frequency.value = 55 * def.ratio;
+        osc.detune.value = def.detune;
+
+        const panner = this.createPannerNode(def.pan);
+        const vg = c.createGain();
+        vg.gain.value = def.gain;
+
+        osc.connect(panner);
+        panner.connect(vg);
+        vg.connect(this.epicFilter);
+        osc.start(startAt);
+
+        this.epicVoices.push({ osc, ratio: def.ratio });
+      }
+
+      this.epicNextChordAt = startAt + 0.1;
+      this.epicChordIndex = 0;
+      this.advanceEpicChord(startAt + 0.02);
     }
 
     scheduleBeatLoop() {
@@ -529,15 +634,22 @@
 
       while (this.nextBeatAt < c.currentTime + 0.24) {
         this.currentTempo += (this.targetTempo - this.currentTempo) * 0.16;
-        this.triggerHeartbeat(this.nextBeatAt);
-        this.nextBeatAt += 60 / Math.max(48, this.currentTempo);
+        const beatInterval = 60 / Math.max(48, this.currentTempo);
+        this.triggerHeartbeat(this.nextBeatAt, beatInterval);
+
+        if (this.epicEnabled && this.nextBeatAt >= this.epicNextChordAt - 0.0001) {
+          this.advanceEpicChord(this.epicNextChordAt);
+          this.epicNextChordAt += beatInterval * 4;
+        }
+
+        this.nextBeatAt += beatInterval;
       }
 
       clearTimeout(this.beatTimer);
       this.beatTimer = window.setTimeout(() => this.scheduleBeatLoop(), 32);
     }
 
-    triggerHeartbeat(t) {
+    triggerHeartbeat(t, beatInterval) {
       if (!this.ctx || !this.heartbeatGain || !this.droneFilter) return;
       const intensity = clamp(this.rally / 24, 0, 1);
       const beatGain = 0.2 + intensity * 0.26 + this.phase * 0.04;
@@ -552,8 +664,12 @@
       this.droneFilter.frequency.setValueAtTime(open, t);
       this.droneFilter.frequency.exponentialRampToValueAtTime(open * 0.76, t + 0.19);
 
-      if (this.phase >= 2 && this.beatIndex % 2 === 0) this.playHat(t + 0.01);
-      if (this.phase >= 3 && this.beatIndex % 4 === 1) this.playHat(t + 0.085, 1.45);
+      if (this.rally >= 5) {
+        this.playHat(t + 0.01, 1 + this.phase * 0.1);
+        this.playHat(t + beatInterval * 0.52, 1.2 + this.phase * 0.08);
+        this.playArp(t + beatInterval * 0.24);
+      }
+      if (this.epicEnabled && this.beatIndex % 2 === 1) this.playHat(t + 0.085, 1.5);
 
       this.beatIndex += 1;
     }
@@ -579,6 +695,78 @@
       gain.connect(this.musicBus);
       src.start(t);
       src.stop(t + 0.08);
+    }
+
+    playArp(t) {
+      if (!this.ctx) return;
+      const c = this.ctx;
+      const seq = [0, 3, 7, 10, 12, 10, 7, 3];
+      const semitone = seq[this.arpStep % seq.length];
+      const base = 108 + clamp(this.rally, 0, 26) * 1.65;
+      const freq = base * Math.pow(2, semitone / 12);
+      this.arpStep += 1;
+
+      const osc = c.createOscillator();
+      osc.type = "triangle";
+      osc.frequency.setValueAtTime(freq, t);
+      osc.frequency.exponentialRampToValueAtTime(freq * 0.9, t + 0.12);
+
+      const bp = c.createBiquadFilter();
+      bp.type = "bandpass";
+      bp.frequency.setValueAtTime(1600 + this.phase * 260, t);
+      bp.Q.value = 3.2;
+
+      const gain = c.createGain();
+      gain.gain.setValueAtTime(0.0001, t);
+      gain.gain.exponentialRampToValueAtTime(0.14 + this.phase * 0.028, t + 0.012);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.16);
+
+      osc.connect(bp);
+      bp.connect(gain);
+      gain.connect(this.musicBus);
+      osc.start(t);
+      osc.stop(t + 0.19);
+    }
+
+    setEpicChord(root, t) {
+      if (!this.ctx || this.epicVoices.length === 0) return;
+      for (const v of this.epicVoices) {
+        v.osc.frequency.setTargetAtTime(root * v.ratio, t, 0.08);
+      }
+      if (this.epicFilter) this.epicFilter.frequency.setTargetAtTime(1900 + this.phase * 190, t, 0.12);
+    }
+
+    advanceEpicChord(t) {
+      const root = this.epicChordRoots[this.epicChordIndex % this.epicChordRoots.length];
+      this.setEpicChord(root, t);
+      this.epicChordIndex += 1;
+    }
+
+    enableEpicLayer() {
+      const c = this.ensureContext();
+      if (!c) return;
+      if (!this.started) this.startBgm();
+      this.setupEpicLayer();
+      if (!this.epicGain) return;
+
+      this.epicEnabled = true;
+      const t = c.currentTime;
+      this.epicGain.gain.cancelScheduledValues(t);
+      this.epicGain.gain.setValueAtTime(Math.max(0.0001, this.epicGain.gain.value), t);
+      this.epicGain.gain.exponentialRampToValueAtTime(0.54, t + 0.06);
+      if (this.epicWetGain) this.epicWetGain.gain.setTargetAtTime(0.88, t, 0.08);
+      this.epicNextChordAt = t + 0.02;
+      this.advanceEpicChord(t + 0.01);
+    }
+
+    disableEpicLayer(immediate = false) {
+      if (!this.ctx || !this.epicGain) return;
+      this.epicEnabled = false;
+      const t = this.ctx.currentTime;
+      this.epicGain.gain.cancelScheduledValues(t);
+      this.epicGain.gain.setValueAtTime(Math.max(0.0001, this.epicGain.gain.value), t);
+      this.epicGain.gain.exponentialRampToValueAtTime(0.0001, t + (immediate ? 0.03 : 0.34));
+      if (this.epicWetGain) this.epicWetGain.gain.setTargetAtTime(0.65, t, immediate ? 0.03 : 0.2);
     }
 
     playBoot() {
@@ -701,6 +889,7 @@
       if (!this.ctx || !this.started) return;
       this.started = false;
       clearTimeout(this.beatTimer);
+      this.disableEpicLayer(true);
 
       const t = this.ctx.currentTime;
       if (this.droneGain) {
@@ -744,21 +933,34 @@
       this.root.style.setProperty("--pulse-flash-b", canvasTheme.paddlePlayer || canvasTheme.ball || "#ff00ff");
     }
 
-    applyPhase(phase) {
+    applyPhase(phase, epic = false) {
       if (!this.root) return;
       this.root.classList.toggle("phase-camera-shake", phase >= 2);
-      this.root.classList.toggle("phase-glitch", phase >= 3);
+      this.root.classList.toggle("epic-mode", epic);
+      this.root.style.setProperty("--impact-shake-px", epic ? "4px" : "2px");
+    }
+
+    setEpicMode(enabled) {
+      if (!this.root) return;
+      this.root.classList.toggle("epic-mode", Boolean(enabled));
+      this.root.style.setProperty("--impact-shake-px", enabled ? "4px" : "2px");
     }
 
     flashPhase(kind = "amber") {
       if (!this.root) return;
-      this.root.classList.remove("phase-flash-amber", "phase-flash-red", "phase-flash-void");
+      this.root.classList.remove("phase-flash-amber", "phase-flash-red", "phase-flash-void", "phase-flash-god");
       this.root.classList.add(
-        kind === "red" ? "phase-flash-red" : kind === "void" ? "phase-flash-void" : "phase-flash-amber"
+        kind === "red"
+          ? "phase-flash-red"
+          : kind === "void"
+            ? "phase-flash-void"
+            : kind === "god"
+              ? "phase-flash-god"
+              : "phase-flash-amber"
       );
       clearTimeout(this.flashTimer);
       this.flashTimer = window.setTimeout(() => {
-        this.root.classList.remove("phase-flash-amber", "phase-flash-red", "phase-flash-void");
+        this.root.classList.remove("phase-flash-amber", "phase-flash-red", "phase-flash-void", "phase-flash-god");
       }, 190);
     }
 
@@ -949,11 +1151,11 @@
     const hot = { r: 255, g: 250, b: 238 };
     if (state.phase === 3) {
       return {
-        mode: "void",
-        wire: parseColorRgb("#ffffff"),
-        innerGlow: parseColorRgb("#f8fbff"),
-        outerGlow: parseColorRgb("#7f8ca6"),
-        plasma: parseColorRgb("#f2f7ff"),
+        mode: "epic",
+        wire: parseColorRgb("#ffe6a2"),
+        innerGlow: parseColorRgb("#ffd700"),
+        outerGlow: parseColorRgb("#4b0082"),
+        plasma: parseColorRgb("#fff4c5"),
         hot: parseColorRgb("#ffffff")
       };
     }
@@ -1056,12 +1258,13 @@
   function renderThemeLabel() {
     const theme = activeThemeDef();
     const phase = getPhaseConfig(state.phase);
-    themeNameEl.textContent = `${theme.label} // ${phase.name}`;
+    themeNameEl.textContent = state.isEpicMode
+      ? `${theme.label} // ${phase.name} // CINEMATIC EVOLUTION`
+      : `${theme.label} // ${phase.name}`;
   }
 
   function updatePhase(rallyCount, milestone = false) {
     const nextPhase = getPhaseFromRally(rallyCount);
-    const prevPhase = state.phase;
     state.phase = nextPhase;
 
     const cfg = applyPhaseCssVars(nextPhase);
@@ -1077,27 +1280,46 @@
       themeManager.canvas.ball = cfg.primary;
       themeManager.canvas.bloomPlayer = rgba(primary, 0.23 + cfg.glow * 0.18);
       themeManager.canvas.bloomCpu = rgba(secondary, 0.23 + cfg.glow * 0.18);
-      themeManager.canvas.bloomBall = nextPhase >= 3 ? "rgba(6,7,8,0.44)" : rgba(mixed, 0.22 + cfg.glow * 0.22);
-      themeManager.canvas.ghost = nextPhase >= 3 ? "rgba(16,18,22,0.16)" : "rgba(255,255,255,0.09)";
+      const epicBallGlow = mixRgb(parseColorRgb("#ffd700"), parseColorRgb("#fffdf7"), 0.48);
+      themeManager.canvas.bloomBall = nextPhase >= 3 ? rgba(epicBallGlow, 0.64 + cfg.glow * 0.14) : rgba(mixed, 0.22 + cfg.glow * 0.22);
+      themeManager.canvas.ghost = nextPhase >= 3 ? "rgba(255,235,172,0.22)" : "rgba(255,255,255,0.09)";
       themeManager.canvas.noiseAlpha = clamp(0.08 + cfg.glow * 0.1, 0.08, 0.2);
     }
 
-    uiFx.applyPhase(nextPhase);
+    uiFx.applyPhase(nextPhase, state.isEpicMode);
     soundEngine.setProgress(rallyCount, nextPhase);
     renderThemeLabel();
 
     if (milestone) {
-      soundEngine.playPhaseShiftAlarm(nextPhase);
+      const epicEntry = nextPhase === 3 && !state.isEpicMode;
+      if (!epicEntry) soundEngine.playPhaseShiftAlarm(nextPhase);
       if (nextPhase === 1) uiFx.flashPhase("amber");
       else if (nextPhase === 2) uiFx.flashPhase("red");
-      else uiFx.flashPhase("void");
-    }
-
-    if (nextPhase >= 3 && (milestone || prevPhase !== nextPhase)) {
-      uiFx.triggerRgbSplit(135);
+      else if (nextPhase === 3) uiFx.flashPhase("god");
     }
 
     return cfg;
+  }
+
+  function triggerEpicMode() {
+    if (state.isEpicMode) return;
+    state.isEpicMode = true;
+    document.body.classList.add("epic-mode");
+    uiFx.setEpicMode(true);
+    uiFx.flashPhase("god");
+    soundEngine.enableEpicLayer();
+    soundEngine.playPhaseShiftAlarm(3);
+    renderThemeLabel();
+  }
+
+  function clearEpicMode() {
+    if (!state.isEpicMode) return;
+    state.isEpicMode = false;
+    document.body.classList.remove("epic-mode");
+    uiFx.setEpicMode(false);
+    soundEngine.disableEpicLayer(false);
+    starStreaks.length = 0;
+    renderThemeLabel();
   }
 
   function redrawNoiseTexture() {
@@ -1251,6 +1473,7 @@
     ball.y = H / 2;
 
     if (resetRun) {
+      clearEpicMode();
       state.returnCount = 0;
       state.lastRallySync = -1;
       updatePhase(0, false);
@@ -1412,9 +1635,9 @@
           random(0.52, 1.05) * lifeMul,
           random(10, 13.5) * sizeMul,
           {
-          drag: random(0.9, 0.94),
-          curve: random(-45, 45),
-          whip: true
+            drag: random(0.9, 0.94),
+            curve: random(-45, 45),
+            whip: true
           }
         );
       } else if (i % 2 === 0) {
@@ -1427,10 +1650,10 @@
           random(0.72, 1.34) * lifeMul,
           random(4, 7.8) * sizeMul,
           {
-          drag: random(0.93, 0.96),
-          curve: turnDir * random(110, 220),
-          jitter: random(1.2, 2.6),
-          whip: true
+            drag: random(0.93, 0.96),
+            curve: turnDir * random(110, 220),
+            jitter: random(1.2, 2.6),
+            whip: true
           }
         );
       } else {
@@ -1443,6 +1666,66 @@
     }
 
     trimTrailParticles();
+  }
+
+  function updateStarStreaks(dt) {
+    if (state.isEpicMode) {
+      const spawnCount = Math.round(clamp(10 + dt * 60 * 8, 10, 24));
+      for (let i = 0; i < spawnCount; i += 1) {
+        const angle = random(0, Math.PI * 2);
+        const speed = random(240, 760);
+        starStreaks.push({
+          x: W / 2 + random(-7, 7),
+          y: H / 2 + random(-7, 7),
+          prevX: W / 2,
+          prevY: H / 2,
+          vx: Math.cos(angle) * speed,
+          vy: Math.sin(angle) * speed,
+          life: random(0.34, 0.84),
+          maxLife: 0.84,
+          width: random(0.9, 2.2)
+        });
+      }
+    }
+
+    for (let i = starStreaks.length - 1; i >= 0; i -= 1) {
+      const s = starStreaks[i];
+      s.prevX = s.x;
+      s.prevY = s.y;
+      s.vx *= 1 + dt * 0.85;
+      s.vy *= 1 + dt * 0.85;
+      s.x += s.vx * dt;
+      s.y += s.vy * dt;
+      s.life -= dt;
+
+      const out = s.x < -80 || s.x > W + 80 || s.y < -80 || s.y > H + 80;
+      if (s.life <= 0 || out || (!state.isEpicMode && s.life < 0.14)) {
+        starStreaks.splice(i, 1);
+      }
+    }
+
+    if (starStreaks.length > 260) {
+      starStreaks.splice(0, starStreaks.length - 260);
+    }
+  }
+
+  function drawStarStreaks() {
+    if (starStreaks.length === 0) return;
+    ctx.save();
+    ctx.globalCompositeOperation = "lighter";
+
+    for (const s of starStreaks) {
+      const a = clamp(s.life / s.maxLife, 0, 1);
+      ctx.globalAlpha = 0.12 + a * 0.7;
+      ctx.strokeStyle = a > 0.5 ? "rgba(255,255,255,0.95)" : "rgba(255,215,0,0.82)";
+      ctx.lineWidth = s.width * (1 + (1 - a) * 1.4);
+      ctx.beginPath();
+      ctx.moveTo(s.prevX, s.prevY);
+      ctx.lineTo(s.x, s.y);
+      ctx.stroke();
+    }
+
+    ctx.restore();
   }
 
   function spawnImpactParticles(x, y, color) {
@@ -1462,6 +1745,8 @@
 
   function updateParticles(dt) {
     const frameScale = dt * 60;
+
+    updateStarStreaks(dt);
 
     for (let i = trailParticles.length - 1; i >= 0; i -= 1) {
       const p = trailParticles[i];
@@ -1746,14 +2031,22 @@
 
     ctx.fillStyle = phaseCfg.bg;
     ctx.fillRect(0, 0, W, H);
+    drawStarStreaks();
 
-    const bloomA = rgba(primary, 0.19 + phaseCfg.glow * 0.2);
-    const bloomB = rgba(secondary, 0.19 + phaseCfg.glow * 0.2);
-    const bloomBall = state.phase >= 3 ? "rgba(5, 5, 8, 0.48)" : rgba(mixed, 0.22 + phaseCfg.glow * 0.24);
+    const bloomA = state.isEpicMode
+      ? rgba(mixRgb(primary, parseColorRgb("#fff0b6"), 0.3), 0.52)
+      : rgba(primary, 0.19 + phaseCfg.glow * 0.2);
+    const bloomB = state.isEpicMode
+      ? rgba(mixRgb(secondary, parseColorRgb("#b87aff"), 0.38), 0.5)
+      : rgba(secondary, 0.19 + phaseCfg.glow * 0.2);
+    const bloomBall = state.isEpicMode ? "rgba(255, 215, 0, 0.84)" : rgba(mixed, 0.22 + phaseCfg.glow * 0.24);
+    const playerBloomRadius = state.isEpicMode ? 188 : 120;
+    const cpuBloomRadius = state.isEpicMode ? 224 : 148;
+    const ballBloomRadius = state.isEpicMode ? 252 : 130 + state.phase * 10;
 
-    drawBloom(player.x + player.w / 2, player.y + player.h / 2, 120, bloomA);
-    drawBloom(cpu.x + cpu.w / 2, cpu.y + cpu.h / 2, 148, bloomB);
-    drawBloom(ball.x, ball.y, 130 + state.phase * 10, bloomBall);
+    drawBloom(player.x + player.w / 2, player.y + player.h / 2, playerBloomRadius, bloomA);
+    drawBloom(cpu.x + cpu.w / 2, cpu.y + cpu.h / 2, cpuBloomRadius, bloomB);
+    drawBloom(ball.x, ball.y, ballBloomRadius, bloomBall);
 
     if (now - noiseUpdatedAt > 70) {
       redrawNoiseTexture();
@@ -1779,8 +2072,8 @@
     }
 
     ctx.save();
-    ctx.globalAlpha = state.phase >= 3 ? 0.16 : 0.1;
-    ctx.fillStyle = state.phase >= 3 ? "rgba(12,16,24,0.28)" : canvasTheme.ghost;
+    ctx.globalAlpha = state.isEpicMode ? 0.24 : (state.phase >= 3 ? 0.16 : 0.1);
+    ctx.fillStyle = state.isEpicMode ? "rgba(255,235,168,0.24)" : (state.phase >= 3 ? "rgba(12,16,24,0.28)" : canvasTheme.ghost);
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.font = "120px 'JetBrains Mono', 'Fira Code', monospace";
@@ -1935,39 +2228,78 @@
     });
 
     if (state.phase >= 3) {
+      const invSpeed = speed > 0 ? 1 / speed : 0;
+      const tailX = -ball.vx * invSpeed;
+      const tailY = -ball.vy * invSpeed;
+      const sortedEdges = mesh.edges
+        .map(([a, b]) => {
+          const va = projected[a];
+          const vb = projected[b];
+          return { a: va, b: vb, z: (va.z + vb.z) * 0.5 };
+        })
+        .sort((lhs, rhs) => lhs.z - rhs.z);
+
       ctx.save();
       ctx.globalCompositeOperation = "lighter";
 
-      const halo = ctx.createRadialGradient(ball.x, ball.y, coreRadius * 0.12, ball.x, ball.y, coreRadius * 2.15);
-      halo.addColorStop(0, "rgba(255,255,255,0.18)");
-      halo.addColorStop(0.42, "rgba(255,255,255,0.06)");
+      const halo = ctx.createRadialGradient(ball.x, ball.y, coreRadius * 0.1, ball.x, ball.y, coreRadius * 2.9);
+      halo.addColorStop(0, "rgba(255,255,255,0.96)");
+      halo.addColorStop(0.24, "rgba(255,248,214,0.74)");
+      halo.addColorStop(0.56, "rgba(255,215,0,0.46)");
+      halo.addColorStop(0.84, "rgba(75,0,130,0.24)");
       halo.addColorStop(1, "rgba(0,0,0,0)");
       ctx.fillStyle = halo;
       ctx.beginPath();
-      ctx.arc(ball.x, ball.y, coreRadius * 2.15, 0, Math.PI * 2);
+      ctx.arc(ball.x, ball.y, coreRadius * 2.9, 0, Math.PI * 2);
       ctx.fill();
 
-      ctx.globalCompositeOperation = "source-over";
-      ctx.fillStyle = "#040507";
-      ctx.beginPath();
-      ctx.arc(ball.x, ball.y, coreRadius * 0.98, 0, Math.PI * 2);
-      ctx.fill();
-
-      ctx.strokeStyle = "rgba(255,255,255,0.85)";
-      ctx.lineWidth = 1.05;
-      ctx.shadowBlur = 16;
-      ctx.shadowColor = "rgba(255,255,255,0.66)";
-      for (let i = 0; i < 8; i += 1) {
-        const a = now * 0.01 + i * (Math.PI * 2 / 8);
-        const r = coreRadius * (0.18 + 0.3 * Math.abs(Math.sin(now * 0.007 + i)));
+      ctx.lineCap = "round";
+      ctx.strokeStyle = "rgba(255,223,118,0.72)";
+      ctx.lineWidth = 1.1 + pulse * 0.36;
+      ctx.shadowBlur = 24;
+      ctx.shadowColor = "rgba(255,215,0,0.62)";
+      for (let i = 0; i < 7; i += 1) {
+        const tailLen = coreRadius * (1.7 + i * 0.44);
+        const jitter = (Math.sin(now * 0.008 + i * 0.7) * 0.45 + random(-0.2, 0.2)) * coreRadius;
+        const sideX = -tailY * jitter * 0.08;
+        const sideY = tailX * jitter * 0.08;
         ctx.beginPath();
-        ctx.moveTo(ball.x + Math.cos(a) * r, ball.y + Math.sin(a) * r);
+        ctx.moveTo(ball.x + tailX * coreRadius * 0.3 + sideX, ball.y + tailY * coreRadius * 0.3 + sideY);
         ctx.lineTo(
-          ball.x + Math.cos(a + 0.7) * (r + coreRadius * 0.38),
-          ball.y + Math.sin(a + 0.7) * (r + coreRadius * 0.38)
+          ball.x + tailX * tailLen + sideX * 1.9,
+          ball.y + tailY * tailLen + sideY * 1.9
         );
         ctx.stroke();
       }
+
+      for (const edge of sortedEdges) {
+        const near = clamp((edge.z + 1) * 0.5, 0, 1);
+        const alpha = 0.22 + near * 0.5 + pulse * 0.18;
+        ctx.strokeStyle = near > 0.54 ? `rgba(255,255,255,${alpha.toFixed(3)})` : `rgba(255,215,0,${(alpha * 0.88).toFixed(3)})`;
+        ctx.lineWidth = 0.92 + near * 1.44;
+        ctx.beginPath();
+        ctx.moveTo(edge.a.x, edge.a.y);
+        ctx.lineTo(edge.b.x, edge.b.y);
+        ctx.stroke();
+      }
+
+      const core = ctx.createRadialGradient(ball.x, ball.y, 0, ball.x, ball.y, coreRadius * 1.02);
+      core.addColorStop(0, "rgba(255,255,255,1)");
+      core.addColorStop(0.32, "rgba(255,255,255,0.97)");
+      core.addColorStop(0.68, "rgba(255,225,135,0.9)");
+      core.addColorStop(1, "rgba(255,215,0,0)");
+      ctx.fillStyle = core;
+      ctx.beginPath();
+      ctx.arc(ball.x, ball.y, coreRadius * 1.02, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.lineWidth = 1.5 + pulse * 0.56;
+      ctx.strokeStyle = `rgba(255,215,0,${(0.46 + pulse * 0.22).toFixed(3)})`;
+      ctx.shadowBlur = 36 + pulse * 18;
+      ctx.shadowColor = "rgba(255,215,0,0.88)";
+      ctx.beginPath();
+      ctx.arc(ball.x, ball.y, coreRadius * 1.42, 0, Math.PI * 2);
+      ctx.stroke();
       ctx.restore();
       return;
     }
@@ -2105,6 +2437,11 @@
       const milestone = state.returnCount > 0 && state.returnCount % 5 === 0;
       updatePhase(state.returnCount, milestone);
       state.lastRallySync = state.returnCount;
+    }
+    if (state.returnCount === 15 && !state.isEpicMode) {
+      triggerEpicMode();
+    } else if (state.returnCount < 15 && state.isEpicMode) {
+      clearEpicMode();
     }
     updateParticles(dt);
     drawScene(now, themeManager.canvas);
