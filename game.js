@@ -232,59 +232,59 @@
   const phaseConfigs = [
     {
       id: 0,
-      name: "STANDARD ARCADE",
-      primary: "#00f3ff",
-      secondary: "#ff4fd8",
-      bg: "#040c1b",
-      text: "#cfeeff",
-      glow: 0.45,
-      gridSpeedMs: 280,
+      name: "THE UNFAIR GLITCH",
+      primary: "#ff00ff",
+      secondary: "#00ffff",
+      bg: "#1a0b2e",
+      text: "#fce9ff",
+      glow: 0.9,
+      gridSpeedMs: 320,
       trailLife: 1,
       trailScale: 1,
-      spin: 0.95,
-      pulse: 0.9
+      spin: 1,
+      pulse: 1
     },
     {
       id: 1,
-      name: "SYSTEM WARNING",
-      primary: "#ff9d1f",
-      secondary: "#ffcc4a",
-      bg: "#190b03",
-      text: "#ffd896",
-      glow: 0.7,
-      gridSpeedMs: 170,
-      trailLife: 1.45,
-      trailScale: 1.18,
-      spin: 1.4,
-      pulse: 1.12
+      name: "GLITCH SURGE",
+      primary: "#ff2de2",
+      secondary: "#0dfdff",
+      bg: "#19092f",
+      text: "#ffe8ff",
+      glow: 0.94,
+      gridSpeedMs: 248,
+      trailLife: 1.15,
+      trailScale: 1.1,
+      spin: 1.15,
+      pulse: 1.1
     },
     {
       id: 2,
-      name: "CRITICAL OVERHEAT",
-      primary: "#ff234c",
-      secondary: "#ff6f82",
-      bg: "#1a0309",
-      text: "#ffd6dc",
-      glow: 0.85,
-      gridSpeedMs: 125,
-      trailLife: 1.75,
-      trailScale: 1.35,
-      spin: 1.88,
-      pulse: 1.8
+      name: "OVERCLOCKED CHAOS",
+      primary: "#ff00c6",
+      secondary: "#2bf3ff",
+      bg: "#1a0530",
+      text: "#ffe8ff",
+      glow: 0.98,
+      gridSpeedMs: 180,
+      trailLife: 1.25,
+      trailScale: 1.18,
+      spin: 1.36,
+      pulse: 1.3
     },
     {
       id: 3,
-      name: "EPIC CLIMAX",
+      name: "CINEMATIC SHIFT",
       primary: "#ffd700",
       secondary: "#4b0082",
-      bg: "#120616",
-      text: "#ffe7a8",
-      glow: 1,
-      gridSpeedMs: 93,
+      bg: "#170622",
+      text: "#fff1c9",
+      glow: 1.15,
+      gridSpeedMs: 82,
       trailLife: 2.1,
       trailScale: 2,
-      spin: 2.18,
-      pulse: 2.35
+      spin: 2.24,
+      pulse: 2.45
     }
   ];
 
@@ -794,30 +794,64 @@
       const c = this.ensureContext();
       if (!c) return;
       const t = c.currentTime + 0.001;
-      const base = random(460, 560) * (0.9 + power * 0.2);
+      if (this.isEpicMode) {
+        const impact = clamp(power, 0.9, 2.4);
+        this.playTone(this.sfxBus, {
+          when: t,
+          frequency: random(88, 118),
+          type: "sawtooth",
+          attack: 0.002,
+          release: 0.28,
+          gain: 0.2 + impact * 0.09,
+          filterType: "lowpass",
+          filterFreq: 520,
+          q: 0.8
+        });
+        this.playTone(this.sfxBus, {
+          when: t + 0.01,
+          frequency: random(170, 240),
+          type: "triangle",
+          attack: 0.002,
+          release: 0.22,
+          gain: 0.13 + impact * 0.05,
+          filterType: "bandpass",
+          filterFreq: 820,
+          q: 1.5
+        });
+        this.playNoise(this.sfxBus, {
+          when: t,
+          attack: 0.001,
+          release: 0.19,
+          gain: 0.1,
+          filterType: "bandpass",
+          filterFreq: 720,
+          q: 1.2
+        });
+        return;
+      }
 
+      const base = random(460, 560) * (0.92 + power * 0.18);
       this.playTone(this.sfxBus, {
         when: t,
         frequency: base,
-        type: "sine",
+        type: "square",
         attack: 0.002,
-        release: 0.12,
-        gain: 0.14 + power * 0.06,
+        release: 0.11,
+        gain: 0.12 + power * 0.05,
         filterType: "bandpass",
-        filterFreq: 1500,
-        q: 2.4
+        filterFreq: 1750,
+        q: 2.2
       });
-
       this.playTone(this.sfxBus, {
-        when: t + 0.005,
-        frequency: base * 1.99,
+        when: t + 0.01,
+        frequency: base * 1.5,
         type: "triangle",
         attack: 0.002,
-        release: 0.08,
+        release: 0.09,
         gain: 0.07 + power * 0.03,
         filterType: "highpass",
-        filterFreq: 2400,
-        q: 0.8
+        filterFreq: 2200,
+        q: 1
       });
     }
 
@@ -825,11 +859,33 @@
       const c = this.ensureContext();
       if (!c) return;
       const t = c.currentTime + 0.001;
-      const freq = random(760, 930);
+      if (this.isEpicMode) {
+        this.playTone(this.sfxBus, {
+          when: t,
+          frequency: random(72, 96),
+          type: "sawtooth",
+          attack: 0.001,
+          release: 0.34,
+          gain: 0.26,
+          filterType: "lowpass",
+          filterFreq: 460,
+          q: 0.9
+        });
+        this.playNoise(this.sfxBus, {
+          when: t + 0.005,
+          attack: 0.001,
+          release: 0.24,
+          gain: 0.12,
+          filterType: "bandpass",
+          filterFreq: 930,
+          q: 1.4
+        });
+        return;
+      }
 
       this.playTone(this.sfxBus, {
         when: t,
-        frequency: freq,
+        frequency: random(760, 930),
         type: "triangle",
         attack: 0.001,
         release: 0.07,
@@ -1287,7 +1343,10 @@
     body.style.setProperty("--core-outer", rgba(primary, 0.38));
     body.style.setProperty("--pulse-flash-a", rgba(secondary, 0.9));
     body.style.setProperty("--pulse-flash-b", rgba(primary, 0.86));
-    body.style.background = `radial-gradient(72vw 42vh at 8% 0%, ${rgba(primary, 0.24)}, transparent 66%), radial-gradient(58vw 38vh at 90% 6%, ${rgba(secondary, 0.2)}, transparent 72%), ${cfg.bg}`;
+    body.style.setProperty("--grid-line-color", rgba(primary, cfg.id >= 3 ? 0.86 : 0.78));
+    body.style.setProperty("--grid-accent-color", rgba(secondary, cfg.id >= 3 ? 0.5 : 0.44));
+    body.style.setProperty("--crt-line-alpha", cfg.id >= 3 ? "0.14" : "0.24");
+    body.style.background = cfg.bg;
 
     body.classList.remove("phase-0", "phase-1", "phase-2", "phase-3");
     body.classList.add(`phase-${cfg.id}`);
@@ -1317,7 +1376,7 @@
       themeManager.canvas.paddleCpu = cfg.secondary;
       themeManager.canvas.net = cfg.secondary;
       themeManager.canvas.netGlow = rgba(secondary, 0.82);
-      themeManager.canvas.ball = cfg.primary;
+      themeManager.canvas.ball = nextPhase >= 3 ? "#ffffff" : cfg.primary;
       themeManager.canvas.bloomPlayer = rgba(primary, 0.23 + cfg.glow * 0.18);
       themeManager.canvas.bloomCpu = rgba(secondary, 0.23 + cfg.glow * 0.18);
       const epicBallGlow = mixRgb(parseColorRgb("#ffd700"), parseColorRgb("#fffdf7"), 0.48);
@@ -1663,10 +1722,11 @@
 
   function updateStarStreaks(dt) {
     if (state.isEpicMode) {
-      const spawnCount = Math.round(clamp(10 + dt * 60 * 8, 10, 24));
+      const spawnCount = Math.round(clamp(18 + dt * 60 * 22, 18, 46));
       for (let i = 0; i < spawnCount; i += 1) {
         const angle = random(0, Math.PI * 2);
-        const speed = random(240, 760);
+        const speed = random(620, 2100);
+        const life = random(0.18, 0.52);
         starStreaks.push({
           x: W / 2 + random(-7, 7),
           y: H / 2 + random(-7, 7),
@@ -1674,9 +1734,9 @@
           prevY: H / 2,
           vx: Math.cos(angle) * speed,
           vy: Math.sin(angle) * speed,
-          life: random(0.34, 0.84),
-          maxLife: 0.84,
-          width: random(0.9, 2.2)
+          life,
+          maxLife: life,
+          width: random(1.1, 2.9)
         });
       }
     }
@@ -1685,8 +1745,9 @@
       const s = starStreaks[i];
       s.prevX = s.x;
       s.prevY = s.y;
-      s.vx *= 1 + dt * 0.85;
-      s.vy *= 1 + dt * 0.85;
+      const warpAccel = state.isEpicMode ? 2.7 : 0.8;
+      s.vx *= 1 + dt * warpAccel;
+      s.vy *= 1 + dt * warpAccel;
       s.x += s.vx * dt;
       s.y += s.vy * dt;
       s.life -= dt;
@@ -1697,8 +1758,8 @@
       }
     }
 
-    if (starStreaks.length > 260) {
-      starStreaks.splice(0, starStreaks.length - 260);
+    if (starStreaks.length > 360) {
+      starStreaks.splice(0, starStreaks.length - 360);
     }
   }
 
@@ -1934,12 +1995,14 @@
       ball.y = half;
       ball.vy *= -1;
       soundEngine.playWallHit();
+      triggerImpactFx();
     }
 
     if (ball.y + half > H) {
       ball.y = H - half;
       ball.vy *= -1;
       soundEngine.playWallHit();
+      triggerImpactFx();
     }
 
     if (ball.vx < 0 && paddleCollision(player)) {
@@ -1959,7 +2022,6 @@
       updateHud();
       flashHudValue(returnCountEl);
       spawnImpactParticles(ball.x, ball.y, canvasTheme.paddlePlayer);
-      triggerImpactFx();
       soundEngine.playPaddleHit(clamp(Math.hypot(ball.vx, ball.vy) / ball.baseSpeed, 0.9, 1.8));
     }
 
@@ -1979,7 +2041,6 @@
       updateHud();
       flashHudValue(speedMultEl);
       spawnImpactParticles(ball.x, ball.y, canvasTheme.paddleCpu);
-      triggerImpactFx();
       soundEngine.playPaddleHit(clamp(Math.hypot(ball.vx, ball.vy) / ball.baseSpeed, 1, 2));
     }
 
@@ -1998,6 +2059,52 @@
     ctx.fillRect(x - radius, y - radius, radius * 2, radius * 2);
   }
 
+  function drawVaporGrid(now, phaseCfg) {
+    const horizon = H * 0.58;
+    const floorHeight = H - horizon;
+    const primary = parseColorRgb(phaseCfg.primary);
+    const secondary = parseColorRgb(phaseCfg.secondary);
+
+    ctx.save();
+
+    const floorGradient = ctx.createLinearGradient(0, horizon, 0, H);
+    floorGradient.addColorStop(0, rgba(primary, state.isEpicMode ? 0.08 : 0.15));
+    floorGradient.addColorStop(1, rgba(primary, state.isEpicMode ? 0.22 : 0.32));
+    ctx.fillStyle = floorGradient;
+    ctx.fillRect(0, horizon, W, floorHeight);
+
+    const horizontalLines = state.isEpicMode ? 28 : 18;
+    const travel = (now * (state.isEpicMode ? 0.0032 : 0.00115)) % 1;
+    for (let i = 0; i < horizontalLines; i += 1) {
+      const t = ((i / horizontalLines) + travel) % 1;
+      const depth = Math.pow(t, 2.08);
+      const y = horizon + depth * floorHeight;
+      const alpha = state.isEpicMode ? 0.26 + depth * 0.6 : 0.16 + depth * 0.48;
+      ctx.globalAlpha = alpha;
+      ctx.strokeStyle = rgba(primary, state.isEpicMode ? 0.84 : 0.68);
+      ctx.lineWidth = state.isEpicMode ? 1.6 : 1.2;
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(W, y);
+      ctx.stroke();
+    }
+
+    ctx.globalAlpha = state.isEpicMode ? 0.62 : 0.52;
+    ctx.strokeStyle = rgba(secondary, state.isEpicMode ? 0.72 : 0.54);
+    ctx.lineWidth = state.isEpicMode ? 1.35 : 1.1;
+    const columns = 17;
+    for (let i = -columns; i <= columns; i += 1) {
+      const xBottom = W / 2 + i * (W / (columns * 1.25));
+      const xTop = W / 2 + i * 13;
+      ctx.beginPath();
+      ctx.moveTo(xTop, horizon);
+      ctx.lineTo(xBottom, H);
+      ctx.stroke();
+    }
+
+    ctx.restore();
+  }
+
   function drawBackground(now, canvasTheme) {
     const phaseCfg = getPhaseConfig();
     const primary = parseColorRgb(phaseCfg.primary);
@@ -2007,43 +2114,72 @@
     ctx.fillStyle = phaseCfg.bg;
     ctx.fillRect(0, 0, W, H);
 
-    if (state.isEpicMode) {
-      drawStarStreaks();
-    } else {
+    drawVaporGrid(now, phaseCfg);
+
+    if (!state.isEpicMode) {
       ctx.save();
       for (const star of starField) {
         const tw = 0.35 + 0.65 * Math.sin(now * 0.0012 * star.twinkle + star.phase);
-        ctx.globalAlpha = 0.2 + tw * 0.5;
-        ctx.fillStyle = tw > 0.58 ? "rgba(214,244,255,0.96)" : "rgba(161,217,255,0.84)";
+        ctx.globalAlpha = 0.12 + tw * 0.42;
+        ctx.fillStyle = tw > 0.58 ? "rgba(221, 250, 255, 0.96)" : "rgba(169, 220, 255, 0.82)";
         ctx.beginPath();
         ctx.arc(star.x, star.y, star.size, 0, Math.PI * 2);
         ctx.fill();
       }
       ctx.restore();
+    } else {
+      drawStarStreaks();
     }
 
     const bloomA = state.isEpicMode
-      ? rgba(mixRgb(primary, parseColorRgb("#fff0b6"), 0.3), 0.52)
+      ? rgba(mixRgb(primary, parseColorRgb("#fff0b6"), 0.3), 0.62)
       : rgba(primary, 0.19 + phaseCfg.glow * 0.2);
     const bloomB = state.isEpicMode
-      ? rgba(mixRgb(secondary, parseColorRgb("#b87aff"), 0.38), 0.5)
+      ? rgba(mixRgb(secondary, parseColorRgb("#b87aff"), 0.38), 0.54)
       : rgba(secondary, 0.19 + phaseCfg.glow * 0.2);
     const bloomBall = state.isEpicMode ? "rgba(255, 215, 0, 0.84)" : rgba(mixed, 0.22 + phaseCfg.glow * 0.24);
-    const playerBloomRadius = state.isEpicMode ? 188 : 120;
-    const cpuBloomRadius = state.isEpicMode ? 224 : 148;
-    const ballBloomRadius = state.isEpicMode ? 252 : 130 + state.phase * 10;
+    const playerBloomRadius = state.isEpicMode ? 196 : 124;
+    const cpuBloomRadius = state.isEpicMode ? 230 : 150;
+    const ballBloomRadius = state.isEpicMode ? 268 : 136;
 
     drawBloom(player.x + player.w / 2, player.y + player.h / 2, playerBloomRadius, bloomA);
     drawBloom(cpu.x + cpu.w / 2, cpu.y + cpu.h / 2, cpuBloomRadius, bloomB);
     drawBloom(ball.x, ball.y, ballBloomRadius, bloomBall);
 
+    if (state.isEpicMode) {
+      ctx.save();
+      const holy = ctx.createRadialGradient(W / 2, H * 0.18, 0, W / 2, H * 0.18, H * 0.88);
+      holy.addColorStop(0, "rgba(255, 242, 194, 0.34)");
+      holy.addColorStop(0.45, "rgba(255, 226, 148, 0.16)");
+      holy.addColorStop(1, "rgba(255, 226, 148, 0)");
+      ctx.fillStyle = holy;
+      ctx.fillRect(0, 0, W, H);
+      ctx.restore();
+    }
+
     ctx.save();
-    ctx.globalAlpha = state.isEpicMode ? 0.24 : (state.phase >= 3 ? 0.16 : 0.1);
-    ctx.fillStyle = state.isEpicMode ? "rgba(255,235,168,0.24)" : (state.phase >= 3 ? "rgba(12,16,24,0.28)" : canvasTheme.ghost);
+    ctx.globalAlpha = state.isEpicMode ? 0.24 : 0.12;
+    ctx.fillStyle = state.isEpicMode ? "rgba(255,235,168,0.24)" : canvasTheme.ghost;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.font = "120px 'JetBrains Mono', 'Fira Code', monospace";
     ctx.fillText(String(state.returnCount).padStart(2, "0"), W / 2, H / 2);
+    ctx.restore();
+
+    ctx.save();
+    ctx.globalAlpha = state.isEpicMode ? 0.08 : 0.16;
+    ctx.fillStyle = "rgba(255,255,255,0.08)";
+    for (let y = 0; y < H; y += 3) {
+      ctx.fillRect(0, y, W, 1);
+    }
+    ctx.restore();
+
+    ctx.save();
+    const vignette = ctx.createRadialGradient(W / 2, H / 2, H * 0.2, W / 2, H / 2, H * 0.78);
+    vignette.addColorStop(0, "rgba(0,0,0,0)");
+    vignette.addColorStop(1, "rgba(0,0,0,0.5)");
+    ctx.fillStyle = vignette;
+    ctx.fillRect(0, 0, W, H);
     ctx.restore();
   }
 
@@ -2158,214 +2294,105 @@
   }
 
   function drawBall(canvasTheme, now) {
-    const palette = getCorePalette(canvasTheme);
-    const phaseCfg = getPhaseConfig();
-    const mesh = getCoreMesh();
     const speed = Math.hypot(ball.vx, ball.vy);
-    const speedFactor = clamp(speed / ball.baseSpeed, 0.78, 2.85) * phaseCfg.spin;
-    const pulseWave = 0.62 + 0.38 * Math.sin(now * (0.0108 + state.phase * 0.0035) + ball.x * 0.014 + ball.y * 0.009);
-    const pulse = clamp(pulseWave * phaseCfg.pulse, 0.12, 2.65);
-    const coreRadius = Math.max(ball.size * 0.84, 11);
-    const auraRadius = coreRadius * (2 + pulse * 0.24);
+    const pulse = 0.62 + 0.38 * Math.sin(now * 0.012 + ball.x * 0.016 + ball.y * 0.012);
 
-    const ax = ball.coreSeed * 0.37 + now * 0.00115 * ball.coreSpin * speedFactor;
-    const ay = ball.coreSeed * 0.73 + now * 0.00152 * (2 - ball.coreSpin * 0.36) * speedFactor;
-    const az = ball.coreSeed * 1.08 + now * 0.0013 * (1 + ball.coreSpin * 0.2) * speedFactor;
-    const depth = 2.9;
-
-    const projected = mesh.vertices.map((v) => {
-      const r = rotatePoint3d(v, ax, ay, az);
-      const perspective = depth / (depth - r.z * 0.92);
-      return {
-        x: ball.x + r.x * coreRadius * perspective,
-        y: ball.y + r.y * coreRadius * perspective,
-        z: r.z
-      };
-    });
-
-    if (state.phase >= 3) {
+    if (state.isEpicMode) {
+      const radius = Math.max(8, ball.size * 0.62);
       const invSpeed = speed > 0 ? 1 / speed : 0;
       const tailX = -ball.vx * invSpeed;
       const tailY = -ball.vy * invSpeed;
-      const sortedEdges = mesh.edges
-        .map(([a, b]) => {
-          const va = projected[a];
-          const vb = projected[b];
-          return { a: va, b: vb, z: (va.z + vb.z) * 0.5 };
-        })
-        .sort((lhs, rhs) => lhs.z - rhs.z);
+      const sideX = -tailY;
+      const sideY = tailX;
 
       ctx.save();
       ctx.globalCompositeOperation = "lighter";
 
-      const halo = ctx.createRadialGradient(ball.x, ball.y, coreRadius * 0.1, ball.x, ball.y, coreRadius * 2.9);
-      halo.addColorStop(0, "rgba(255,255,255,0.96)");
-      halo.addColorStop(0.24, "rgba(255,248,214,0.74)");
-      halo.addColorStop(0.56, "rgba(255,215,0,0.46)");
-      halo.addColorStop(0.84, "rgba(75,0,130,0.24)");
-      halo.addColorStop(1, "rgba(0,0,0,0)");
+      const halo = ctx.createRadialGradient(ball.x, ball.y, radius * 0.1, ball.x, ball.y, radius * 3.2);
+      halo.addColorStop(0, "rgba(255,255,255,1)");
+      halo.addColorStop(0.25, "rgba(255,248,214,0.78)");
+      halo.addColorStop(0.58, "rgba(255,215,0,0.46)");
+      halo.addColorStop(1, "rgba(75,0,130,0)");
       ctx.fillStyle = halo;
       ctx.beginPath();
-      ctx.arc(ball.x, ball.y, coreRadius * 2.9, 0, Math.PI * 2);
+      ctx.arc(ball.x, ball.y, radius * 3.2, 0, Math.PI * 2);
       ctx.fill();
 
       ctx.lineCap = "round";
-      ctx.strokeStyle = "rgba(255,223,118,0.72)";
-      ctx.lineWidth = 1.1 + pulse * 0.36;
-      ctx.shadowBlur = 24;
-      ctx.shadowColor = "rgba(255,215,0,0.62)";
-      for (let i = 0; i < 7; i += 1) {
-        const tailLen = coreRadius * (1.7 + i * 0.44);
-        const jitter = (Math.sin(now * 0.008 + i * 0.7) * 0.45 + random(-0.2, 0.2)) * coreRadius;
-        const sideX = -tailY * jitter * 0.08;
-        const sideY = tailX * jitter * 0.08;
+      for (let i = 0; i < 10; i += 1) {
+        const spread = (i - 4.5) * 0.24;
+        const tailLength = radius * (3 + i * 0.42) * (0.94 + pulse * 0.14);
+        const startX = ball.x + sideX * spread * radius * 0.4;
+        const startY = ball.y + sideY * spread * radius * 0.4;
+        const endX = startX + tailX * tailLength + sideX * spread * radius * 0.55;
+        const endY = startY + tailY * tailLength + sideY * spread * radius * 0.55;
+        const alpha = 0.12 + (10 - i) * 0.06;
+        ctx.strokeStyle = `rgba(255,215,0,${alpha.toFixed(3)})`;
+        ctx.lineWidth = 0.9 + (10 - i) * 0.18;
+        ctx.shadowBlur = 24;
+        ctx.shadowColor = "rgba(255,215,0,0.66)";
         ctx.beginPath();
-        ctx.moveTo(ball.x + tailX * coreRadius * 0.3 + sideX, ball.y + tailY * coreRadius * 0.3 + sideY);
-        ctx.lineTo(
-          ball.x + tailX * tailLen + sideX * 1.9,
-          ball.y + tailY * tailLen + sideY * 1.9
-        );
+        ctx.moveTo(startX, startY);
+        ctx.lineTo(endX, endY);
         ctx.stroke();
       }
 
-      for (const edge of sortedEdges) {
-        const near = clamp((edge.z + 1) * 0.5, 0, 1);
-        const alpha = 0.22 + near * 0.5 + pulse * 0.18;
-        ctx.strokeStyle = near > 0.54 ? `rgba(255,255,255,${alpha.toFixed(3)})` : `rgba(255,215,0,${(alpha * 0.88).toFixed(3)})`;
-        ctx.lineWidth = 0.92 + near * 1.44;
-        ctx.beginPath();
-        ctx.moveTo(edge.a.x, edge.a.y);
-        ctx.lineTo(edge.b.x, edge.b.y);
-        ctx.stroke();
-      }
-
-      const core = ctx.createRadialGradient(ball.x, ball.y, 0, ball.x, ball.y, coreRadius * 1.02);
+      const core = ctx.createRadialGradient(ball.x, ball.y, 0, ball.x, ball.y, radius * 1.12);
       core.addColorStop(0, "rgba(255,255,255,1)");
-      core.addColorStop(0.32, "rgba(255,255,255,0.97)");
-      core.addColorStop(0.68, "rgba(255,225,135,0.9)");
+      core.addColorStop(0.4, "rgba(255,255,255,0.98)");
+      core.addColorStop(0.76, "rgba(255,236,168,0.9)");
       core.addColorStop(1, "rgba(255,215,0,0)");
       ctx.fillStyle = core;
       ctx.beginPath();
-      ctx.arc(ball.x, ball.y, coreRadius * 1.02, 0, Math.PI * 2);
+      ctx.arc(ball.x, ball.y, radius * 1.12, 0, Math.PI * 2);
       ctx.fill();
 
-      ctx.lineWidth = 1.5 + pulse * 0.56;
-      ctx.strokeStyle = `rgba(255,215,0,${(0.46 + pulse * 0.22).toFixed(3)})`;
-      ctx.shadowBlur = 36 + pulse * 18;
-      ctx.shadowColor = "rgba(255,215,0,0.88)";
+      ctx.lineWidth = 1.6 + pulse * 0.6;
+      ctx.strokeStyle = `rgba(255,215,0,${(0.44 + pulse * 0.24).toFixed(3)})`;
+      ctx.shadowBlur = 30;
+      ctx.shadowColor = "rgba(255,215,0,0.82)";
       ctx.beginPath();
-      ctx.arc(ball.x, ball.y, coreRadius * 1.42, 0, Math.PI * 2);
+      ctx.arc(ball.x, ball.y, radius * 1.44, 0, Math.PI * 2);
       ctx.stroke();
       ctx.restore();
       return;
     }
 
+    const size = Math.max(10, ball.size);
+    const half = size / 2;
+    const left = Math.round(ball.x - half);
+    const top = Math.round(ball.y - half);
+
     ctx.save();
     ctx.globalCompositeOperation = "lighter";
 
-    const aura = ctx.createRadialGradient(ball.x, ball.y, coreRadius * 0.15, ball.x, ball.y, auraRadius);
-    aura.addColorStop(0, rgba(palette.hot, 0.28 + pulse * 0.18));
-    aura.addColorStop(0.25, rgba(palette.innerGlow, 0.26 + pulse * 0.18));
-    aura.addColorStop(0.56, rgba(palette.outerGlow, 0.2 + pulse * 0.16));
-    aura.addColorStop(1, "rgba(0,0,0,0)");
-    ctx.fillStyle = aura;
+    const glow = ctx.createRadialGradient(ball.x, ball.y, 0, ball.x, ball.y, size * 2.2);
+    glow.addColorStop(0, "rgba(255,255,255,0.76)");
+    glow.addColorStop(0.4, "rgba(255,0,255,0.4)");
+    glow.addColorStop(0.72, "rgba(0,255,255,0.24)");
+    glow.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = glow;
     ctx.beginPath();
-    ctx.arc(ball.x, ball.y, auraRadius, 0, Math.PI * 2);
+    ctx.arc(ball.x, ball.y, size * 2.2, 0, Math.PI * 2);
     ctx.fill();
 
-    ctx.shadowBlur = 22 + pulse * 16;
-    ctx.shadowColor = rgba(palette.innerGlow, 0.76);
-    ctx.lineWidth = 1.2 + pulse * 0.8;
-    ctx.strokeStyle = rgba(palette.innerGlow, 0.38 + pulse * 0.4);
-    ctx.beginPath();
-    ctx.arc(ball.x, ball.y, coreRadius * 1.25, 0, Math.PI * 2);
-    ctx.stroke();
-
-    ctx.shadowBlur = 28 + pulse * 18;
-    ctx.shadowColor = rgba(palette.outerGlow, 0.72);
-    ctx.lineWidth = 1.05 + pulse * 0.52;
-    ctx.strokeStyle = rgba(palette.outerGlow, 0.34 + pulse * 0.32);
-    ctx.beginPath();
-    ctx.arc(ball.x, ball.y, coreRadius * 1.73, 0, Math.PI * 2);
-    ctx.stroke();
-
-    ctx.save();
-    ctx.setLineDash([7, 5]);
-    ctx.lineDashOffset = -now * 0.05 * speedFactor;
-    ctx.lineWidth = 1.1;
-    ctx.strokeStyle = rgba(palette.plasma, 0.46 + pulse * 0.2);
-    ctx.beginPath();
-    ctx.arc(ball.x, ball.y, coreRadius * 1.04, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.restore();
-
-    const sortedEdges = mesh.edges
-      .map(([a, b]) => {
-        const va = projected[a];
-        const vb = projected[b];
-        return { a: va, b: vb, z: (va.z + vb.z) * 0.5 };
-      })
-      .sort((lhs, rhs) => lhs.z - rhs.z);
-
-    for (const edge of sortedEdges) {
-      const near = clamp((edge.z + 1) * 0.5, 0, 1);
-      const alpha = 0.2 + near * 0.42 + pulse * 0.22;
-      const width = 0.86 + near * 1.2;
-      const glowColor = near > 0.52 ? palette.innerGlow : palette.wire;
-      ctx.strokeStyle = rgba(glowColor, alpha);
-      ctx.lineWidth = width;
-      ctx.beginPath();
-      ctx.moveTo(edge.a.x, edge.a.y);
-      ctx.lineTo(edge.b.x, edge.b.y);
-      ctx.stroke();
-    }
+    ctx.shadowBlur = 18;
+    ctx.shadowColor = "rgba(255,0,255,0.74)";
+    ctx.fillStyle = canvasTheme.ball || "#ff00ff";
+    ctx.fillRect(left, top, size, size);
 
     ctx.shadowBlur = 0;
-    ctx.save();
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.font = `${Math.max(8, Math.round(coreRadius * 0.78))}px "JetBrains Mono", monospace`;
-    for (let i = 0; i < 10; i += 1) {
-      const angle = now * 0.0043 + i * (Math.PI * 2 / 10) + ball.coreSeed * 0.5;
-      const radius = coreRadius * (0.34 + 0.16 * Math.sin(now * 0.008 + i * 1.1));
-      const x = ball.x + Math.cos(angle) * radius;
-      const y = ball.y + Math.sin(angle * 1.22) * radius * 0.7;
-      const alpha = 0.14 + 0.24 * pulse + 0.14 * Math.sin(now * 0.01 + i);
-      ctx.fillStyle = rgba(palette.plasma, alpha);
-      ctx.fillText(i % 2 === 0 ? "0" : "1", x, y);
-    }
-    ctx.restore();
+    ctx.fillStyle = "rgba(255,255,255,0.42)";
+    ctx.fillRect(left + 2, top + 2, size - 5, 2);
+    ctx.fillRect(left + 2, top + 2, 2, size - 5);
 
-    ctx.save();
-    ctx.lineWidth = 1.1;
-    ctx.strokeStyle = rgba(palette.innerGlow, 0.34 + pulse * 0.2);
-    for (let i = 0; i < 5; i += 1) {
-      const a = now * 0.005 + i * 1.23 + ball.coreSeed;
-      const b = a + Math.sin(now * 0.01 + i * 0.8) * 1.08;
-      const r = coreRadius * (0.24 + 0.1 * Math.sin(now * 0.007 + i * 1.5));
-      const x1 = ball.x + Math.cos(a) * r;
-      const y1 = ball.y + Math.sin(a * 1.3) * r;
-      const x2 = ball.x + Math.cos(b) * (r + coreRadius * 0.16);
-      const y2 = ball.y + Math.sin(b * 1.1) * (r + coreRadius * 0.14);
-      const cx = ball.x + Math.cos((a + b) * 0.5) * coreRadius * 0.12;
-      const cy = ball.y + Math.sin((a + b) * 0.5) * coreRadius * 0.12;
-      ctx.beginPath();
-      ctx.moveTo(x1, y1);
-      ctx.quadraticCurveTo(cx, cy, x2, y2);
-      ctx.stroke();
-    }
-    ctx.restore();
+    ctx.fillStyle = "rgba(16,0,26,0.36)";
+    ctx.fillRect(left + 1, top + size - 3, size - 2, 2);
+    ctx.fillRect(left + size - 3, top + 1, 2, size - 2);
 
-    const coreGlow = ctx.createRadialGradient(ball.x, ball.y, 0, ball.x, ball.y, coreRadius * 0.94);
-    coreGlow.addColorStop(0, rgba(palette.hot, 0.98));
-    coreGlow.addColorStop(0.24, rgba(palette.hot, 0.75));
-    coreGlow.addColorStop(0.56, rgba(palette.innerGlow, 0.32 + pulse * 0.2));
-    coreGlow.addColorStop(1, "rgba(0,0,0,0)");
-    ctx.fillStyle = coreGlow;
-    ctx.beginPath();
-    ctx.arc(ball.x, ball.y, coreRadius * 0.94, 0, Math.PI * 2);
-    ctx.fill();
-
+    ctx.strokeStyle = canvasTheme.net || "#00ffff";
+    ctx.lineWidth = 2;
+    ctx.strokeRect(left + 0.5, top + 0.5, size - 1, size - 1);
     ctx.restore();
   }
 
@@ -2393,6 +2420,7 @@
       updatePhase(state.returnCount);
       state.lastRallySync = state.returnCount;
     }
+    // Phase shift trigger is intentionally exact: rally 15 enters epic mode once.
     if (state.returnCount === 15 && !state.isEpicMode) {
       triggerEpicMode();
     } else if (state.returnCount < 15 && state.isEpicMode) {
