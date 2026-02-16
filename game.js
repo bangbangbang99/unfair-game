@@ -44,6 +44,8 @@
     returnCount: 0,
     bestCount: 0,
     speedMultiplier: 1,
+    phase: 0,
+    lastRallySync: -1,
     ranking: [],
     chaosMode: false,
     controlsInvertedUntil: 0,
@@ -235,9 +237,67 @@
     2032: "2032-02-11"
   };
 
+  const phaseConfigs = [
+    {
+      id: 0,
+      name: "COLD LOGIC",
+      primary: "#2e9cff",
+      secondary: "#00e4ff",
+      bg: "#040c1b",
+      text: "#88deff",
+      glow: 0.45,
+      gridSpeedMs: 280,
+      trailLife: 1,
+      trailScale: 1,
+      spin: 0.95,
+      pulse: 0.9
+    },
+    {
+      id: 1,
+      name: "SYSTEM WARNING",
+      primary: "#ff9d1f",
+      secondary: "#ffcc4a",
+      bg: "#190b03",
+      text: "#ffd896",
+      glow: 0.7,
+      gridSpeedMs: 170,
+      trailLife: 1.45,
+      trailScale: 1.18,
+      spin: 1.4,
+      pulse: 1.12
+    },
+    {
+      id: 2,
+      name: "CRITICAL OVERHEAT",
+      primary: "#ff234c",
+      secondary: "#ff6f82",
+      bg: "#1a0309",
+      text: "#ffd6dc",
+      glow: 0.85,
+      gridSpeedMs: 125,
+      trailLife: 1.75,
+      trailScale: 1.35,
+      spin: 1.88,
+      pulse: 1.8
+    },
+    {
+      id: 3,
+      name: "VOID/GLITCH MODE",
+      primary: "#111111",
+      secondary: "#f2f6ff",
+      bg: "#ebeff7",
+      text: "#101725",
+      glow: 0.96,
+      gridSpeedMs: 82,
+      trailLife: 2.05,
+      trailScale: 1.6,
+      spin: 2.15,
+      pulse: 2.25
+    }
+  ];
+
   let themeManager;
-  let soundManager;
-  let announcer;
+  let soundEngine;
   let uiFx;
 
   class ThemeManager {
@@ -269,10 +329,11 @@
 
       this.activeClass = cls;
       this.canvas = { ...def.canvas };
-      themeNameEl.textContent = `${def.label} // ${def.badge}`;
       if (uiFx) uiFx.syncTheme(this.canvas);
 
       randomizeBallAppearance(true);
+      applyPhaseCssVars(state.phase);
+      renderThemeLabel();
       return this.canvas;
     }
 
@@ -291,15 +352,34 @@
     }
   }
 
-  class SoundManager {
+  class SoundEngine {
     constructor() {
       this.AudioContextClass = window.AudioContext || window.webkitAudioContext;
       this.enabled = Boolean(this.AudioContextClass);
       this.ctx = null;
       this.master = null;
+      this.musicBus = null;
+      this.sfxBus = null;
       this.compressor = null;
-      this.distortionCurve = this.buildDistortionCurve(320);
       this.noiseBuffer = null;
+      this.distortionCurve = this.buildDistortionCurve(180);
+
+      this.started = false;
+      this.droneOscA = null;
+      this.droneOscB = null;
+      this.droneFilter = null;
+      this.droneDrive = null;
+      this.droneGain = null;
+      this.heartbeatGain = null;
+      this.nextBeatAt = 0;
+      this.beatTimer = 0;
+      this.beatIndex = 0;
+
+      this.phase = 0;
+      this.rally = 0;
+      this.currentTempo = 66;
+      this.targetTempo = 66;
+      this.targetFreq = 44;
     }
 
     ensureContext() {
@@ -307,21 +387,31 @@
       if (this.ctx) return this.ctx;
 
       this.ctx = new this.AudioContextClass();
-      this.master = this.ctx.createGain();
-      this.master.gain.value = 0.62;
+      const c = this.ctx;
 
-      this.compressor = this.ctx.createDynamicsCompressor();
-      this.compressor.threshold.value = -24;
-      this.compressor.knee.value = 24;
-      this.compressor.ratio.value = 10;
+      this.master = c.createGain();
+      this.master.gain.value = 0.84;
+
+      this.musicBus = c.createGain();
+      this.musicBus.gain.value = 0.66;
+
+      this.sfxBus = c.createGain();
+      this.sfxBus.gain.value = 0.9;
+
+      this.compressor = c.createDynamicsCompressor();
+      this.compressor.threshold.value = -20;
+      this.compressor.knee.value = 20;
+      this.compressor.ratio.value = 8;
       this.compressor.attack.value = 0.003;
-      this.compressor.release.value = 0.22;
+      this.compressor.release.value = 0.24;
 
+      this.musicBus.connect(this.master);
+      this.sfxBus.connect(this.master);
       this.master.connect(this.compressor);
-      this.compressor.connect(this.ctx.destination);
-      this.noiseBuffer = this.createNoiseBuffer();
+      this.compressor.connect(c.destination);
 
-      return this.ctx;
+      this.noiseBuffer = this.createNoiseBuffer();
+      return c;
     }
 
     unlock() {
@@ -333,231 +423,318 @@
       return Promise.resolve(true);
     }
 
-    buildDistortionCurve(amount = 300) {
+    buildDistortionCurve(amount = 160) {
       const n = 44100;
       const curve = new Float32Array(n);
       const deg = Math.PI / 180;
       for (let i = 0; i < n; i += 1) {
         const x = (i * 2) / n - 1;
-        curve[i] = ((3 + amount) * x * 20 * deg) / (Math.PI + amount * Math.abs(x));
+        curve[i] = ((3 + amount) * x * 18 * deg) / (Math.PI + amount * Math.abs(x));
       }
       return curve;
+    }
+
+    createDistortion(amount = 160) {
+      if (!this.ctx) return null;
+      const node = this.ctx.createWaveShaper();
+      node.curve = amount === 180 ? this.distortionCurve : this.buildDistortionCurve(amount);
+      node.oversample = "4x";
+      return node;
     }
 
     createNoiseBuffer() {
       const c = this.ctx;
       if (!c) return null;
-      const sampleRate = c.sampleRate || 44100;
-      const len = Math.floor(sampleRate * 1.8);
-      const buf = c.createBuffer(1, len, sampleRate);
+      const len = Math.floor((c.sampleRate || 44100) * 2);
+      const buf = c.createBuffer(1, len, c.sampleRate || 44100);
       const data = buf.getChannelData(0);
       for (let i = 0; i < len; i += 1) data[i] = random(-1, 1);
       return buf;
     }
 
-    createDistortion(amount = 280) {
-      if (!this.ctx) return null;
-      const node = this.ctx.createWaveShaper();
-      node.curve = amount === 320 ? this.distortionCurve : this.buildDistortionCurve(amount);
-      node.oversample = "4x";
-      return node;
+    setProgress(rallyCount, phase) {
+      this.rally = Math.max(0, rallyCount || 0);
+      this.phase = clamp(phase || 0, 0, 3);
+      const intensity = clamp(this.rally / 24, 0, 1);
+      this.targetTempo = 66 + intensity * 58 + this.phase * 3.5;
+      this.targetFreq = 43 + intensity * 17 + this.phase * 2.2;
+
+      if (!this.ctx || !this.droneOscA || !this.droneOscB) return;
+      const t = this.ctx.currentTime;
+      this.droneOscA.frequency.setTargetAtTime(this.targetFreq, t, 0.22);
+      this.droneOscB.frequency.setTargetAtTime(this.targetFreq * 0.506, t, 0.26);
+      this.droneFilter.frequency.setTargetAtTime(120 + intensity * 210 + this.phase * 36, t, 0.25);
+      this.musicBus.gain.setTargetAtTime(0.56 + intensity * 0.25 + this.phase * 0.05, t, 0.25);
     }
 
-    playPaddleHit() {
+    startBgm() {
       const c = this.ensureContext();
-      if (!c) return;
+      if (!c || this.started) return;
 
-      const t = c.currentTime + 0.001;
-      const base = random(45, 59);
+      if (this.droneOscA || this.droneOscB) {
+        try {
+          if (this.droneOscA) this.droneOscA.stop();
+          if (this.droneOscB) this.droneOscB.stop();
+        } catch {}
+        this.droneOscA = null;
+        this.droneOscB = null;
+      }
 
-      const kick = c.createOscillator();
-      kick.type = "sine";
-      kick.frequency.setValueAtTime(base * random(1.8, 2.3), t);
-      kick.frequency.exponentialRampToValueAtTime(base, t + 0.04);
-      kick.frequency.exponentialRampToValueAtTime(Math.max(30, base * 0.55), t + 0.24);
+      this.started = true;
+      this.beatIndex = 0;
+      this.nextBeatAt = c.currentTime + 0.08;
 
-      const sub = c.createOscillator();
-      sub.type = "triangle";
-      sub.frequency.setValueAtTime(base * 0.54, t);
-      sub.frequency.exponentialRampToValueAtTime(Math.max(20, base * 0.34), t + 0.24);
+      this.droneOscA = c.createOscillator();
+      this.droneOscA.type = "sawtooth";
+      this.droneOscA.frequency.value = this.targetFreq;
 
-      const kickGain = c.createGain();
-      kickGain.gain.setValueAtTime(0.0001, t);
-      kickGain.gain.exponentialRampToValueAtTime(0.9, t + 0.008);
-      kickGain.gain.exponentialRampToValueAtTime(0.0001, t + 0.24);
+      this.droneOscB = c.createOscillator();
+      this.droneOscB.type = "sawtooth";
+      this.droneOscB.frequency.value = this.targetFreq * 0.506;
+      this.droneOscB.detune.value = -5;
 
-      const subGain = c.createGain();
-      subGain.gain.setValueAtTime(0.0001, t);
-      subGain.gain.exponentialRampToValueAtTime(0.62, t + 0.01);
-      subGain.gain.exponentialRampToValueAtTime(0.0001, t + 0.26);
+      this.droneFilter = c.createBiquadFilter();
+      this.droneFilter.type = "lowpass";
+      this.droneFilter.frequency.value = 140;
+      this.droneFilter.Q.value = 0.84;
 
-      const lowpass = c.createBiquadFilter();
-      lowpass.type = "lowpass";
-      lowpass.frequency.setValueAtTime(780, t);
-      lowpass.frequency.exponentialRampToValueAtTime(120, t + 0.24);
-      lowpass.Q.value = 0.8;
+      this.droneDrive = this.createDistortion(200);
+      this.droneGain = c.createGain();
+      this.droneGain.gain.value = 0.11;
 
-      const dist = this.createDistortion(420);
-      const out = c.createGain();
-      out.gain.setValueAtTime(0.62, t);
+      this.heartbeatGain = c.createGain();
+      this.heartbeatGain.gain.value = 0.0001;
 
-      kick.connect(kickGain);
-      sub.connect(subGain);
-      kickGain.connect(lowpass);
-      subGain.connect(lowpass);
-      lowpass.connect(dist);
-      dist.connect(out);
-      out.connect(this.master);
+      this.droneOscA.connect(this.droneFilter);
+      this.droneOscB.connect(this.droneFilter);
+      this.droneFilter.connect(this.droneDrive);
+      this.droneDrive.connect(this.droneGain);
+      this.droneDrive.connect(this.heartbeatGain);
+      this.droneGain.connect(this.musicBus);
+      this.heartbeatGain.connect(this.musicBus);
 
-      kick.start(t);
-      sub.start(t);
-      kick.stop(t + 0.28);
-      sub.stop(t + 0.28);
+      const t = c.currentTime;
+      this.droneGain.gain.setValueAtTime(0.0001, t);
+      this.droneGain.gain.exponentialRampToValueAtTime(0.11, t + 1.1);
+
+      this.droneOscA.start(t);
+      this.droneOscB.start(t);
+
+      this.scheduleBeatLoop();
     }
 
-    playWallHit() {
+    scheduleBeatLoop() {
+      if (!this.started || !this.ctx) return;
+      const c = this.ctx;
+
+      while (this.nextBeatAt < c.currentTime + 0.24) {
+        this.currentTempo += (this.targetTempo - this.currentTempo) * 0.16;
+        this.triggerHeartbeat(this.nextBeatAt);
+        this.nextBeatAt += 60 / Math.max(48, this.currentTempo);
+      }
+
+      clearTimeout(this.beatTimer);
+      this.beatTimer = window.setTimeout(() => this.scheduleBeatLoop(), 32);
+    }
+
+    triggerHeartbeat(t) {
+      if (!this.ctx || !this.heartbeatGain || !this.droneFilter) return;
+      const intensity = clamp(this.rally / 24, 0, 1);
+      const beatGain = 0.2 + intensity * 0.26 + this.phase * 0.04;
+      const open = 140 + intensity * 240 + this.phase * 45;
+
+      this.heartbeatGain.gain.cancelScheduledValues(t);
+      this.heartbeatGain.gain.setValueAtTime(0.0001, t);
+      this.heartbeatGain.gain.exponentialRampToValueAtTime(beatGain, t + 0.018);
+      this.heartbeatGain.gain.exponentialRampToValueAtTime(0.0001, t + 0.24);
+
+      this.droneFilter.frequency.cancelScheduledValues(t);
+      this.droneFilter.frequency.setValueAtTime(open, t);
+      this.droneFilter.frequency.exponentialRampToValueAtTime(open * 0.76, t + 0.19);
+
+      if (this.phase >= 2 && this.beatIndex % 2 === 0) this.playHat(t + 0.01);
+      if (this.phase >= 3 && this.beatIndex % 4 === 1) this.playHat(t + 0.085, 1.45);
+
+      this.beatIndex += 1;
+    }
+
+    playHat(t, freqMul = 1) {
+      if (!this.ctx) return;
+      const c = this.ctx;
+      const src = c.createBufferSource();
+      src.buffer = this.noiseBuffer || this.createNoiseBuffer();
+
+      const hp = c.createBiquadFilter();
+      hp.type = "highpass";
+      hp.frequency.value = 5900 * freqMul;
+      hp.Q.value = 0.9;
+
+      const gain = c.createGain();
+      gain.gain.setValueAtTime(0.0001, t);
+      gain.gain.exponentialRampToValueAtTime(0.11 + this.phase * 0.028, t + 0.003);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.06);
+
+      src.connect(hp);
+      hp.connect(gain);
+      gain.connect(this.musicBus);
+      src.start(t);
+      src.stop(t + 0.08);
+    }
+
+    playBoot() {
       const c = this.ensureContext();
       if (!c) return;
 
       const t = c.currentTime + 0.001;
       const osc = c.createOscillator();
       osc.type = "sawtooth";
-      osc.frequency.setValueAtTime(random(1250, 2100), t);
-      osc.frequency.exponentialRampToValueAtTime(random(240, 420), t + 0.07);
-
-      const gain = c.createGain();
-      gain.gain.setValueAtTime(0.0001, t);
-      gain.gain.exponentialRampToValueAtTime(0.35, t + 0.002);
-      gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.085);
-
-      const hp = c.createBiquadFilter();
-      hp.type = "highpass";
-      hp.frequency.setValueAtTime(1200, t);
-      hp.Q.value = 0.8;
-
-      const bp = c.createBiquadFilter();
-      bp.type = "bandpass";
-      bp.frequency.setValueAtTime(random(1700, 2800), t);
-      bp.frequency.exponentialRampToValueAtTime(random(900, 1300), t + 0.08);
-      bp.Q.value = 6;
-
-      osc.connect(hp);
-      hp.connect(bp);
-      bp.connect(gain);
-      gain.connect(this.master);
-
-      osc.start(t);
-      osc.stop(t + 0.1);
-    }
-
-    playScorePoint() {
-      const c = this.ensureContext();
-      if (!c) return;
-
-      const t = c.currentTime + 0.001;
-      const lead = c.createOscillator();
-      lead.type = "sawtooth";
-      lead.frequency.setValueAtTime(random(180, 230), t);
-      lead.frequency.exponentialRampToValueAtTime(random(920, 1180), t + 0.36);
-
-      const layer = c.createOscillator();
-      layer.type = "square";
-      layer.frequency.setValueAtTime(random(140, 180), t);
-      layer.frequency.exponentialRampToValueAtTime(random(690, 860), t + 0.35);
-
-      const gain = c.createGain();
-      gain.gain.setValueAtTime(0.0001, t);
-      gain.gain.exponentialRampToValueAtTime(0.4, t + 0.03);
-      gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.44);
-
-      const sweep = c.createBiquadFilter();
-      sweep.type = "bandpass";
-      sweep.frequency.setValueAtTime(300, t);
-      sweep.frequency.exponentialRampToValueAtTime(2600, t + 0.42);
-      sweep.Q.value = 1.8;
-
-      const dist = this.createDistortion(180);
-      lead.connect(sweep);
-      layer.connect(sweep);
-      sweep.connect(dist);
-      dist.connect(gain);
-      gain.connect(this.master);
-
-      lead.start(t);
-      layer.start(t);
-      lead.stop(t + 0.48);
-      layer.stop(t + 0.48);
-    }
-
-    playGameOver() {
-      const c = this.ensureContext();
-      if (!c) return;
-
-      const t = c.currentTime + 0.001;
-
-      const down = c.createOscillator();
-      down.type = "sawtooth";
-      down.frequency.setValueAtTime(240, t);
-      down.frequency.exponentialRampToValueAtTime(42, t + 0.95);
-      down.frequency.linearRampToValueAtTime(0.0001, t + 1.35);
+      osc.frequency.setValueAtTime(95, t);
+      osc.frequency.exponentialRampToValueAtTime(660, t + 0.8);
 
       const sub = c.createOscillator();
       sub.type = "sine";
-      sub.frequency.setValueAtTime(110, t);
-      sub.frequency.exponentialRampToValueAtTime(28, t + 1.2);
-      sub.frequency.linearRampToValueAtTime(0.0001, t + 1.45);
+      sub.frequency.setValueAtTime(48, t);
+      sub.frequency.exponentialRampToValueAtTime(128, t + 0.75);
 
-      const toneGain = c.createGain();
-      toneGain.gain.setValueAtTime(0.0001, t);
-      toneGain.gain.exponentialRampToValueAtTime(0.54, t + 0.018);
-      toneGain.gain.exponentialRampToValueAtTime(0.0001, t + 1.45);
+      const lp = c.createBiquadFilter();
+      lp.type = "lowpass";
+      lp.frequency.setValueAtTime(180, t);
+      lp.frequency.exponentialRampToValueAtTime(3200, t + 0.78);
+      lp.Q.value = 1.8;
 
-      const toneFilter = c.createBiquadFilter();
-      toneFilter.type = "lowpass";
-      toneFilter.frequency.setValueAtTime(1600, t);
-      toneFilter.frequency.exponentialRampToValueAtTime(80, t + 1.4);
-      toneFilter.Q.value = 1.2;
+      const drive = this.createDistortion(230);
+      const gain = c.createGain();
+      gain.gain.setValueAtTime(0.0001, t);
+      gain.gain.exponentialRampToValueAtTime(0.42, t + 0.09);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.96);
 
-      const toneDist = this.createDistortion(220);
-      down.connect(toneFilter);
-      sub.connect(toneFilter);
-      toneFilter.connect(toneDist);
-      toneDist.connect(toneGain);
-      toneGain.connect(this.master);
+      osc.connect(lp);
+      sub.connect(lp);
+      lp.connect(drive);
+      drive.connect(gain);
+      gain.connect(this.sfxBus);
+
+      osc.start(t);
+      sub.start(t);
+      osc.stop(t + 1);
+      sub.stop(t + 1);
+    }
+
+    playPhaseShiftAlarm(phase = this.phase) {
+      const c = this.ensureContext();
+      if (!c) return;
+
+      const t = c.currentTime + 0.001;
+      const siren = c.createOscillator();
+      siren.type = "square";
+      const startF = phase >= 2 ? 980 : 720;
+      const endF = phase >= 2 ? 1420 : 1040;
+      siren.frequency.setValueAtTime(startF, t);
+      siren.frequency.exponentialRampToValueAtTime(endF, t + 0.08);
+      siren.frequency.exponentialRampToValueAtTime(startF * 0.76, t + 0.17);
+
+      const gain = c.createGain();
+      gain.gain.setValueAtTime(0.0001, t);
+      gain.gain.exponentialRampToValueAtTime(0.34 + phase * 0.05, t + 0.01);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.24);
+
+      const bp = c.createBiquadFilter();
+      bp.type = "bandpass";
+      bp.frequency.setValueAtTime(startF * 1.4, t);
+      bp.Q.value = 5.5;
+
+      siren.connect(bp);
+      bp.connect(gain);
+      gain.connect(this.sfxBus);
+      siren.start(t);
+      siren.stop(t + 0.26);
+    }
+
+    playGameOverCrash() {
+      const c = this.ensureContext();
+      if (!c) return;
+
+      const t = c.currentTime + 0.001;
+      const down = c.createOscillator();
+      down.type = "sawtooth";
+      down.frequency.setValueAtTime(180, t);
+      down.frequency.exponentialRampToValueAtTime(28, t + 1.1);
+
+      const downGain = c.createGain();
+      downGain.gain.setValueAtTime(0.0001, t);
+      downGain.gain.exponentialRampToValueAtTime(0.58, t + 0.015);
+      downGain.gain.exponentialRampToValueAtTime(0.0001, t + 1.2);
+
+      const downFilter = c.createBiquadFilter();
+      downFilter.type = "lowpass";
+      downFilter.frequency.setValueAtTime(1400, t);
+      downFilter.frequency.exponentialRampToValueAtTime(70, t + 1.15);
+      downFilter.Q.value = 1.1;
 
       const noise = c.createBufferSource();
       noise.buffer = this.noiseBuffer || this.createNoiseBuffer();
 
-      const noiseFilter = c.createBiquadFilter();
-      noiseFilter.type = "bandpass";
-      noiseFilter.frequency.setValueAtTime(3200, t);
-      noiseFilter.frequency.exponentialRampToValueAtTime(240, t + 1.4);
-      noiseFilter.Q.value = 0.9;
+      const nHp = c.createBiquadFilter();
+      nHp.type = "highpass";
+      nHp.frequency.setValueAtTime(1600, t);
+      nHp.frequency.exponentialRampToValueAtTime(260, t + 0.95);
 
-      const noiseGain = c.createGain();
-      noiseGain.gain.setValueAtTime(0.0001, t);
-      noiseGain.gain.exponentialRampToValueAtTime(0.26, t + 0.035);
-      noiseGain.gain.exponentialRampToValueAtTime(0.0001, t + 1.5);
+      const nGain = c.createGain();
+      nGain.gain.setValueAtTime(0.0001, t);
+      nGain.gain.exponentialRampToValueAtTime(0.56, t + 0.01);
+      nGain.gain.exponentialRampToValueAtTime(0.0001, t + 0.95);
 
-      noise.connect(noiseFilter);
-      noiseFilter.connect(noiseGain);
-      noiseGain.connect(this.master);
+      down.connect(downFilter);
+      downFilter.connect(downGain);
+      downGain.connect(this.sfxBus);
+      noise.connect(nHp);
+      nHp.connect(nGain);
+      nGain.connect(this.sfxBus);
 
       down.start(t);
-      sub.start(t);
       noise.start(t);
+      down.stop(t + 1.25);
+      noise.stop(t + 1.05);
+    }
 
-      down.stop(t + 1.5);
-      sub.stop(t + 1.5);
-      noise.stop(t + 1.55);
+    stopBgm() {
+      if (!this.ctx || !this.started) return;
+      this.started = false;
+      clearTimeout(this.beatTimer);
+
+      const t = this.ctx.currentTime;
+      if (this.droneGain) {
+        this.droneGain.gain.cancelScheduledValues(t);
+        this.droneGain.gain.setValueAtTime(Math.max(0.0001, this.droneGain.gain.value), t);
+        this.droneGain.gain.exponentialRampToValueAtTime(0.0001, t + 0.7);
+      }
+      if (this.heartbeatGain) {
+        this.heartbeatGain.gain.cancelScheduledValues(t);
+        this.heartbeatGain.gain.setValueAtTime(Math.max(0.0001, this.heartbeatGain.gain.value), t);
+        this.heartbeatGain.gain.exponentialRampToValueAtTime(0.0001, t + 0.45);
+      }
+
+      window.setTimeout(() => {
+        try {
+          if (this.droneOscA) this.droneOscA.stop();
+          if (this.droneOscB) this.droneOscB.stop();
+        } catch {}
+
+        this.droneOscA = null;
+        this.droneOscB = null;
+        this.droneFilter = null;
+        this.droneDrive = null;
+        this.droneGain = null;
+        this.heartbeatGain = null;
+      }, 760);
     }
   }
 
   class VisualSyncManager {
     constructor(root) {
       this.root = root;
-      this.pulseTimer = 0;
       this.rgbTimer = 0;
+      this.flashTimer = 0;
       if (this.root) this.root.classList.add("game-console");
     }
 
@@ -567,22 +744,25 @@
       this.root.style.setProperty("--pulse-flash-b", canvasTheme.paddlePlayer || canvasTheme.ball || "#ff00ff");
     }
 
-    pulseKick(primary, secondary) {
+    applyPhase(phase) {
       if (!this.root) return;
-      if (primary) this.root.style.setProperty("--pulse-flash-a", primary);
-      if (secondary) this.root.style.setProperty("--pulse-flash-b", secondary);
-
-      this.root.classList.remove("kick-pulse");
-      void this.root.offsetWidth;
-      this.root.classList.add("kick-pulse");
-
-      clearTimeout(this.pulseTimer);
-      this.pulseTimer = window.setTimeout(() => {
-        this.root.classList.remove("kick-pulse");
-      }, 56);
+      this.root.classList.toggle("phase-camera-shake", phase >= 2);
+      this.root.classList.toggle("phase-glitch", phase >= 3);
     }
 
-    triggerRgbSplit() {
+    flashPhase(kind = "amber") {
+      if (!this.root) return;
+      this.root.classList.remove("phase-flash-amber", "phase-flash-red", "phase-flash-void");
+      this.root.classList.add(
+        kind === "red" ? "phase-flash-red" : kind === "void" ? "phase-flash-void" : "phase-flash-amber"
+      );
+      clearTimeout(this.flashTimer);
+      this.flashTimer = window.setTimeout(() => {
+        this.root.classList.remove("phase-flash-amber", "phase-flash-red", "phase-flash-void");
+      }, 190);
+    }
+
+    triggerRgbSplit(duration = 90) {
       if (!this.root) return;
       this.root.classList.remove("ui-rgb-split");
       void this.root.offsetWidth;
@@ -591,94 +771,7 @@
       clearTimeout(this.rgbTimer);
       this.rgbTimer = window.setTimeout(() => {
         this.root.classList.remove("ui-rgb-split");
-      }, 90);
-    }
-  }
-
-  class ToxicAnnouncer {
-    constructor() {
-      this.enabled = "speechSynthesis" in window && "SpeechSynthesisUtterance" in window;
-      this.voice = null;
-      this.cooldownMs = 120;
-      this.lastSpokenAt = 0;
-      this.startLines = [
-        "System initialized. Try not to embarrass yourself.",
-        "Loading unfair protocols..."
-      ];
-      this.missLines = [
-        "Pathetic.",
-        "Calculated.",
-        "Too slow, human.",
-        "Skill issue detected.",
-        "Lag? No, just you."
-      ];
-      this.highScoreLine = "Glitch detected. Anomalous performance.";
-
-      if (this.enabled) {
-        this.selectVoice();
-        window.speechSynthesis.addEventListener("voiceschanged", () => this.selectVoice());
-      }
-    }
-
-    selectVoice() {
-      if (!this.enabled) return;
-      const voices = window.speechSynthesis.getVoices();
-      if (!Array.isArray(voices) || voices.length === 0) return;
-
-      const englishVoices = voices.filter((v) => /^en/i.test(v.lang || ""));
-      const pool = englishVoices.length > 0 ? englishVoices : voices;
-      const preferred = [
-        /robot/i,
-        /synth/i,
-        /zira|david|mark|guy|james/i,
-        /microsoft/i,
-        /google/i
-      ];
-
-      let chosen = null;
-      for (const re of preferred) {
-        chosen = pool.find((v) => re.test(v.name));
-        if (chosen) break;
-      }
-
-      this.voice = chosen || pool[0];
-    }
-
-    speak(line, { priority = false, delayMs = 0 } = {}) {
-      if (!this.enabled || !line) return;
-      const run = () => {
-        const synth = window.speechSynthesis;
-        const now = performance.now();
-        if (!priority && now - this.lastSpokenAt < this.cooldownMs) return;
-        this.lastSpokenAt = now;
-
-        const utter = new SpeechSynthesisUtterance(line);
-        utter.pitch = 0.8;
-        utter.rate = 1.2;
-        utter.volume = 0.95;
-        if (this.voice) utter.voice = this.voice;
-
-        if (priority) synth.cancel();
-        synth.speak(utter);
-      };
-
-      if (delayMs > 0) {
-        window.setTimeout(run, delayMs);
-      } else {
-        run();
-      }
-    }
-
-    announceStart() {
-      this.speak(pick(this.startLines), { priority: true });
-    }
-
-    announceMiss() {
-      this.speak(pick(this.missLines), { priority: true });
-    }
-
-    announceHighScore() {
-      this.speak(this.highScoreLine, { delayMs: 260 });
+      }, duration);
     }
   }
 
@@ -853,47 +946,158 @@
   }
 
   function getCorePalette(canvasTheme) {
-    const inner = parseColorRgb(canvasTheme.paddleCpu || canvasTheme.net || "#00f3ff");
-    const outer = parseColorRgb(canvasTheme.paddlePlayer || canvasTheme.ball || "#ff00ff");
-    const ballTone = parseColorRgb(canvasTheme.ball || "#ccff00");
     const hot = { r: 255, g: 250, b: 238 };
-    const cls = themeManager ? themeManager.activeClass : "theme-cyberpunk";
-
-    if (cls === "theme-seollal") {
-      const jade = parseColorRgb("#00ff9d");
-      const gold = parseColorRgb("#f6cd66");
+    if (state.phase === 3) {
       return {
-        wire: mixRgb(gold, jade, 0.35),
-        innerGlow: jade,
-        outerGlow: gold,
-        plasma: mixRgb(jade, gold, 0.42),
+        mode: "void",
+        wire: parseColorRgb("#ffffff"),
+        innerGlow: parseColorRgb("#f8fbff"),
+        outerGlow: parseColorRgb("#7f8ca6"),
+        plasma: parseColorRgb("#f2f7ff"),
+        hot: parseColorRgb("#ffffff")
+      };
+    }
+
+    if (state.phase === 2) {
+      return {
+        mode: "overheat",
+        wire: parseColorRgb("#ff7f92"),
+        innerGlow: parseColorRgb("#ff2d56"),
+        outerGlow: parseColorRgb("#ff142f"),
+        plasma: parseColorRgb("#ff8ea0"),
+        hot: parseColorRgb("#fff1f4")
+      };
+    }
+
+    if (state.phase === 1) {
+      return {
+        mode: "warning",
+        wire: parseColorRgb("#ffd464"),
+        innerGlow: parseColorRgb("#ffad1f"),
+        outerGlow: parseColorRgb("#ff7f00"),
+        plasma: parseColorRgb("#ffd06f"),
         hot
       };
     }
 
-    if (cls === "theme-april-fools") {
-      const cyan = parseColorRgb("#00fffc");
-      const pink = parseColorRgb("#ff4ac8");
-      return {
-        wire: mixRgb(cyan, pink, 0.45),
-        innerGlow: cyan,
-        outerGlow: pink,
-        plasma: mixRgb(cyan, pink, 0.55),
-        hot
-      };
-    }
-
+    const coldInner = parseColorRgb(canvasTheme.paddleCpu || "#00e4ff");
+    const coldOuter = parseColorRgb("#2e9cff");
     return {
-      wire: mixRgb(ballTone, mixRgb(inner, outer, 0.5), 0.58),
-      innerGlow: mixRgb(inner, hot, 0.08),
-      outerGlow: mixRgb(outer, ballTone, 0.24),
-      plasma: mixRgb(inner, outer, 0.52),
+      mode: "cold",
+      wire: mixRgb(coldInner, coldOuter, 0.38),
+      innerGlow: coldInner,
+      outerGlow: coldOuter,
+      plasma: mixRgb(coldInner, parseColorRgb("#9ce7ff"), 0.38),
       hot
     };
   }
 
   function getCoreMesh() {
     return ball.coreVariant === "hypercube" ? hypercubeCoreMesh : icosaCoreMesh;
+  }
+
+  function activeThemeDef() {
+    if (!themeManager) return themeDefs["theme-cyberpunk"];
+    return themeDefs[themeManager.activeClass] || themeDefs["theme-cyberpunk"];
+  }
+
+  function getPhaseFromRally(rallyCount) {
+    if (rallyCount >= 15) return 3;
+    if (rallyCount >= 10) return 2;
+    if (rallyCount >= 5) return 1;
+    return 0;
+  }
+
+  function getPhaseConfig(phase = state.phase) {
+    return phaseConfigs[clamp(Math.floor(phase), 0, phaseConfigs.length - 1)];
+  }
+
+  function applyPhaseCssVars(phase) {
+    const cfg = getPhaseConfig(phase);
+    const body = document.body;
+    if (!body) return cfg;
+
+    const primary = parseColorRgb(cfg.primary);
+    const secondary = parseColorRgb(cfg.secondary);
+    const text = parseColorRgb(cfg.text);
+
+    body.style.setProperty("--theme-primary", cfg.primary);
+    body.style.setProperty("--theme-secondary", cfg.secondary);
+    body.style.setProperty("--theme-bg", cfg.bg);
+    body.style.setProperty("--theme-text", cfg.text);
+    body.style.setProperty("--theme-primary-soft", rgba(primary, 0.24));
+    body.style.setProperty("--theme-secondary-soft", rgba(secondary, 0.2));
+    body.style.setProperty("--theme-bg-panel", rgba(mixRgb(parseColorRgb(cfg.bg), primary, 0.2), 0.88));
+    body.style.setProperty("--theme-bg-shell", rgba(mixRgb(parseColorRgb(cfg.bg), secondary, 0.1), 0.9));
+    body.style.setProperty("--panel-mid", rgba(mixRgb(parseColorRgb(cfg.bg), secondary, 0.23), 0.84));
+    body.style.setProperty("--panel-dark", rgba(mixRgb(parseColorRgb(cfg.bg), primary, 0.1), 0.92));
+    body.style.setProperty("--glow-intensity", String(cfg.glow));
+    body.style.setProperty("--grid-speed", `${cfg.gridSpeedMs}ms`);
+
+    body.style.setProperty("--neon-cyan", cfg.secondary);
+    body.style.setProperty("--neon-pink", cfg.primary);
+    body.style.setProperty("--line-main", rgba(secondary, 0.82));
+    body.style.setProperty("--line-sub", rgba(primary, 0.76));
+    body.style.setProperty("--line-soft", rgba(secondary, 0.34));
+    body.style.setProperty("--terminal-green", rgba(text, 1));
+    body.style.setProperty("--dim-green", rgba(text, 0.62));
+    body.style.setProperty("--core-inner", rgba(secondary, 0.46));
+    body.style.setProperty("--core-outer", rgba(primary, 0.38));
+    body.style.setProperty("--pulse-flash-a", rgba(secondary, 0.9));
+    body.style.setProperty("--pulse-flash-b", rgba(primary, 0.86));
+    body.style.background = `radial-gradient(72vw 42vh at 8% 0%, ${rgba(primary, 0.24)}, transparent 66%), radial-gradient(58vw 38vh at 90% 6%, ${rgba(secondary, 0.2)}, transparent 72%), ${cfg.bg} url("noise-texture-placeholder")`;
+
+    body.classList.remove("phase-0", "phase-1", "phase-2", "phase-3");
+    body.classList.add(`phase-${cfg.id}`);
+
+    return cfg;
+  }
+
+  function renderThemeLabel() {
+    const theme = activeThemeDef();
+    const phase = getPhaseConfig(state.phase);
+    themeNameEl.textContent = `${theme.label} // ${phase.name}`;
+  }
+
+  function updatePhase(rallyCount, milestone = false) {
+    const nextPhase = getPhaseFromRally(rallyCount);
+    const prevPhase = state.phase;
+    state.phase = nextPhase;
+
+    const cfg = applyPhaseCssVars(nextPhase);
+    if (themeManager && themeManager.canvas) {
+      const primary = parseColorRgb(cfg.primary);
+      const secondary = parseColorRgb(cfg.secondary);
+      const mixed = mixRgb(primary, secondary, 0.5);
+      themeManager.canvas.ambient = cfg.bg;
+      themeManager.canvas.paddlePlayer = cfg.primary;
+      themeManager.canvas.paddleCpu = cfg.secondary;
+      themeManager.canvas.net = cfg.secondary;
+      themeManager.canvas.netGlow = rgba(secondary, 0.82);
+      themeManager.canvas.ball = cfg.primary;
+      themeManager.canvas.bloomPlayer = rgba(primary, 0.23 + cfg.glow * 0.18);
+      themeManager.canvas.bloomCpu = rgba(secondary, 0.23 + cfg.glow * 0.18);
+      themeManager.canvas.bloomBall = nextPhase >= 3 ? "rgba(6,7,8,0.44)" : rgba(mixed, 0.22 + cfg.glow * 0.22);
+      themeManager.canvas.ghost = nextPhase >= 3 ? "rgba(16,18,22,0.16)" : "rgba(255,255,255,0.09)";
+      themeManager.canvas.noiseAlpha = clamp(0.08 + cfg.glow * 0.1, 0.08, 0.2);
+    }
+
+    uiFx.applyPhase(nextPhase);
+    soundEngine.setProgress(rallyCount, nextPhase);
+    renderThemeLabel();
+
+    if (milestone) {
+      soundEngine.playPhaseShiftAlarm(nextPhase);
+      if (nextPhase === 1) uiFx.flashPhase("amber");
+      else if (nextPhase === 2) uiFx.flashPhase("red");
+      else uiFx.flashPhase("void");
+    }
+
+    if (nextPhase >= 3 && (milestone || prevPhase !== nextPhase)) {
+      uiFx.triggerRgbSplit(135);
+    }
+
+    return cfg;
   }
 
   function redrawNoiseTexture() {
@@ -1031,24 +1235,13 @@
   }
 
   function randomizeBallAppearance(force = false) {
-    const ballMode = themeManager ? themeManager.canvas.ballMode : "mixed";
     ball.mode = "core";
-    ball.coreVariant = Math.random() < 0.36 ? "hypercube" : "icosa";
+    ball.size = 16;
+    if (force || Math.random() < 0.22) {
+      ball.coreVariant = ball.coreVariant === "icosa" ? "hypercube" : "icosa";
+    }
     ball.coreSeed = random(0, Math.PI * 2);
-    ball.coreSpin = random(0.74, 1.36);
-
-    if (ballMode === "seollal") {
-      ball.size = 17;
-      return;
-    }
-
-    if (ballMode === "emoji") {
-      ball.size = 17;
-      ball.coreVariant = "hypercube";
-      return;
-    }
-
-    ball.size = force ? random(16, 18.2) : random(15.2, 17.8);
+    ball.coreSpin = random(0.84, 1.08);
   }
 
   function resetServe(direction = (Math.random() < 0.65 ? -1 : 1), resetRun = false) {
@@ -1057,7 +1250,11 @@
     ball.x = W / 2;
     ball.y = H / 2;
 
-    if (resetRun) state.returnCount = 0;
+    if (resetRun) {
+      state.returnCount = 0;
+      state.lastRallySync = -1;
+      updatePhase(0, false);
+    }
     state.speedMultiplier = 1;
     updateHud();
 
@@ -1069,8 +1266,9 @@
 
   function startGame() {
     if (state.running) return;
-    soundManager.unlock();
-    announcer.announceStart();
+    soundEngine.unlock();
+    soundEngine.playBoot();
+    soundEngine.startBgm();
     state.running = true;
     setOverlay("", "", false);
     if (ball.vx === 0 && ball.vy === 0) resetServe(undefined, true);
@@ -1123,9 +1321,12 @@
   function createParticles(dt = 1 / 60, burst = 0) {
     const speed = Math.hypot(ball.vx, ball.vy);
     if (speed <= 0) return;
+    const phaseCfg = getPhaseConfig();
+    const lifeMul = phaseCfg.trailLife;
+    const sizeMul = phaseCfg.trailScale;
 
     const speedFactor = clamp(speed / ball.baseSpeed, 0.8, 3.4);
-    const emitCount = Math.round(clamp(3 + speedFactor * 1.8 + burst + dt * 40, 3, 11));
+    const emitCount = Math.round(clamp(3 + speedFactor * 1.8 + burst + dt * 40 + state.phase * 0.75, 3, 14));
     const inv = speed > 0 ? 1 / speed : 0;
     const dirX = ball.vx * inv;
     const dirY = ball.vy * inv;
@@ -1146,7 +1347,7 @@
       let vy = tailY * speed * random(0.2, 0.38) + sideY * speed * random(-0.22, 0.22) + random(-36, 36);
 
       if (type === "spark") {
-        pushTrailParticle(type, x, y, vx, vy, random(0.32, 0.74), random(1.2, 2.8), {
+        pushTrailParticle(type, x, y, vx, vy, random(0.32, 0.74) * lifeMul, random(1.2, 2.8) * sizeMul, {
           drag: random(0.84, 0.9),
           curve: random(-50, 50),
           jitter: random(0.5, 1.4)
@@ -1154,7 +1355,7 @@
       } else if (type === "binary") {
         vx *= 0.76;
         vy *= 0.76;
-        pushTrailParticle(type, x, y, vx, vy, random(0.5, 1.02), random(9.5, 13.5), {
+        pushTrailParticle(type, x, y, vx, vy, random(0.5, 1.02) * lifeMul, random(9.5, 13.5) * sizeMul, {
           drag: random(0.89, 0.93),
           curve: random(-36, 36),
           jitter: random(0.4, 1.2)
@@ -1162,7 +1363,7 @@
       } else {
         vx *= 0.52;
         vy *= 0.52;
-        pushTrailParticle(type, x, y, vx, vy, random(0.72, 1.3), random(3.8, 7.4), {
+        pushTrailParticle(type, x, y, vx, vy, random(0.72, 1.3) * lifeMul, random(3.8, 7.4) * sizeMul, {
           drag: random(0.92, 0.96),
           curve: random(-170, 170),
           jitter: random(0.8, 2.2)
@@ -1177,13 +1378,16 @@
     const prevSpeed = Math.hypot(prevVX, prevVY);
     const nextSpeed = Math.hypot(nextVX, nextVY);
     if (prevSpeed < 60 || nextSpeed < 60) return;
+    const phaseCfg = getPhaseConfig();
+    const lifeMul = phaseCfg.trailLife;
+    const sizeMul = phaseCfg.trailScale;
 
     const prevAngle = Math.atan2(prevVY, prevVX);
     const nextAngle = Math.atan2(nextVY, nextVX);
     const delta = normalizeAngle(nextAngle - prevAngle);
     const turnDir = Math.sign(delta) || 1;
     const arcSpan = Math.min(Math.abs(delta), Math.PI * 0.88);
-    const count = Math.round(clamp(11 + nextSpeed / 62, 12, 26));
+    const count = Math.round(clamp(11 + nextSpeed / 62 + state.phase * 1.8, 12, 32));
 
     for (let i = 0; i < count; i += 1) {
       const t = i / Math.max(1, count - 1);
@@ -1199,20 +1403,38 @@
       const baseVY = -Math.sin(arcAngle) * follow + Math.cos(arcAngle) * tangent + random(-16, 16);
 
       if (i % 5 === 0) {
-        pushTrailParticle("binary", x, y, baseVX * 0.72, baseVY * 0.72, random(0.52, 1.05), random(10, 13.5), {
+        pushTrailParticle(
+          "binary",
+          x,
+          y,
+          baseVX * 0.72,
+          baseVY * 0.72,
+          random(0.52, 1.05) * lifeMul,
+          random(10, 13.5) * sizeMul,
+          {
           drag: random(0.9, 0.94),
           curve: random(-45, 45),
           whip: true
-        });
+          }
+        );
       } else if (i % 2 === 0) {
-        pushTrailParticle("wisp", x, y, baseVX * 0.55, baseVY * 0.55, random(0.72, 1.34), random(4, 7.8), {
+        pushTrailParticle(
+          "wisp",
+          x,
+          y,
+          baseVX * 0.55,
+          baseVY * 0.55,
+          random(0.72, 1.34) * lifeMul,
+          random(4, 7.8) * sizeMul,
+          {
           drag: random(0.93, 0.96),
           curve: turnDir * random(110, 220),
           jitter: random(1.2, 2.6),
           whip: true
-        });
+          }
+        );
       } else {
-        pushTrailParticle("spark", x, y, baseVX, baseVY, random(0.34, 0.78), random(1.4, 3.2), {
+        pushTrailParticle("spark", x, y, baseVX, baseVY, random(0.34, 0.78) * lifeMul, random(1.4, 3.2) * sizeMul, {
           drag: random(0.86, 0.91),
           curve: turnDir * random(-80, 80),
           whip: true
@@ -1384,15 +1606,15 @@
     stopGame();
     ball.vx = 0;
     ball.vy = 0;
-    soundManager.playGameOver();
-    uiFx.triggerRgbSplit();
-    announcer.announceMiss();
+    soundEngine.playGameOverCrash();
+    soundEngine.stopBgm();
+    uiFx.flashPhase(state.phase >= 2 ? "red" : "amber");
+    uiFx.triggerRgbSplit(state.phase >= 3 ? 150 : 90);
 
     const isNewBest = state.returnCount > state.bestCount;
     if (isNewBest) {
       state.bestCount = state.returnCount;
       flashHudValue(bestCountEl);
-      announcer.announceHighScore();
     }
 
     pushRanking(state.returnCount);
@@ -1456,15 +1678,11 @@
     if (ball.y - half < 0) {
       ball.y = half;
       ball.vy *= -1;
-      soundManager.playWallHit();
-      uiFx.triggerRgbSplit();
     }
 
     if (ball.y + half > H) {
       ball.y = H - half;
       ball.vy *= -1;
-      soundManager.playWallHit();
-      uiFx.triggerRgbSplit();
     }
 
     if (ball.vx < 0 && paddleCollision(player)) {
@@ -1472,8 +1690,6 @@
       const prevVY = ball.vy;
       ball.x = player.x + player.w + half;
       bounceFromPaddle(player, true);
-      soundManager.playPaddleHit();
-      uiFx.pulseKick(canvasTheme.paddlePlayer, canvasTheme.paddleCpu);
       createWhipTrail(prevVX, prevVY, ball.vx, ball.vy);
       createParticles(dt, 2.6);
 
@@ -1487,7 +1703,6 @@
       flashHudValue(returnCountEl);
       spawnImpactParticles(ball.x, ball.y, canvasTheme.paddlePlayer);
       triggerImpactFx();
-      if (Math.random() < 0.4) randomizeBallAppearance();
     }
 
     if (ball.vx > 0 && paddleCollision(cpu)) {
@@ -1495,8 +1710,6 @@
       const prevVY = ball.vy;
       ball.x = cpu.x - half;
       bounceFromPaddle(cpu, false);
-      soundManager.playPaddleHit();
-      uiFx.pulseKick(canvasTheme.paddleCpu, canvasTheme.paddlePlayer);
 
       const boost = getBoost();
       state.speedMultiplier *= boost;
@@ -1509,13 +1722,10 @@
       flashHudValue(speedMultEl);
       spawnImpactParticles(ball.x, ball.y, canvasTheme.paddleCpu);
       triggerImpactFx();
-      if (Math.random() < 0.4) randomizeBallAppearance();
     }
 
     if (ball.x + half < 0) onGameOver();
     if (ball.x - half > W) {
-      soundManager.playScorePoint();
-      uiFx.triggerRgbSplit();
       resetServe(-1, false);
     }
   }
@@ -1529,12 +1739,21 @@
   }
 
   function drawBackground(now, canvasTheme) {
-    ctx.fillStyle = canvasTheme.ambient;
+    const phaseCfg = getPhaseConfig();
+    const primary = parseColorRgb(phaseCfg.primary);
+    const secondary = parseColorRgb(phaseCfg.secondary);
+    const mixed = mixRgb(primary, secondary, 0.5);
+
+    ctx.fillStyle = phaseCfg.bg;
     ctx.fillRect(0, 0, W, H);
 
-    drawBloom(player.x + player.w / 2, player.y + player.h / 2, 120, canvasTheme.bloomPlayer);
-    drawBloom(cpu.x + cpu.w / 2, cpu.y + cpu.h / 2, 148, canvasTheme.bloomCpu);
-    drawBloom(ball.x, ball.y, 130, canvasTheme.bloomBall);
+    const bloomA = rgba(primary, 0.19 + phaseCfg.glow * 0.2);
+    const bloomB = rgba(secondary, 0.19 + phaseCfg.glow * 0.2);
+    const bloomBall = state.phase >= 3 ? "rgba(5, 5, 8, 0.48)" : rgba(mixed, 0.22 + phaseCfg.glow * 0.24);
+
+    drawBloom(player.x + player.w / 2, player.y + player.h / 2, 120, bloomA);
+    drawBloom(cpu.x + cpu.w / 2, cpu.y + cpu.h / 2, 148, bloomB);
+    drawBloom(ball.x, ball.y, 130 + state.phase * 10, bloomBall);
 
     if (now - noiseUpdatedAt > 70) {
       redrawNoiseTexture();
@@ -1543,7 +1762,7 @@
 
     if (noisePattern) {
       ctx.save();
-      ctx.globalAlpha = canvasTheme.noiseAlpha;
+      ctx.globalAlpha = clamp((canvasTheme.noiseAlpha || 0.1) + state.phase * 0.025, 0.07, 0.22);
       ctx.fillStyle = noisePattern;
       ctx.translate((now * 0.032) % noiseTex.width, (now * 0.023) % noiseTex.height);
       ctx.fillRect(-noiseTex.width, -noiseTex.height, W + noiseTex.width * 2, H + noiseTex.height * 2);
@@ -1560,8 +1779,8 @@
     }
 
     ctx.save();
-    ctx.globalAlpha = 0.1;
-    ctx.fillStyle = canvasTheme.ghost;
+    ctx.globalAlpha = state.phase >= 3 ? 0.16 : 0.1;
+    ctx.fillStyle = state.phase >= 3 ? "rgba(12,16,24,0.28)" : canvasTheme.ghost;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.font = "120px 'JetBrains Mono', 'Fira Code', monospace";
@@ -1691,10 +1910,12 @@
 
   function drawBall(canvasTheme, now) {
     const palette = getCorePalette(canvasTheme);
+    const phaseCfg = getPhaseConfig();
     const mesh = getCoreMesh();
     const speed = Math.hypot(ball.vx, ball.vy);
-    const speedFactor = clamp(speed / ball.baseSpeed, 0.78, 2.85);
-    const pulse = 0.62 + 0.38 * Math.sin(now * 0.0108 + ball.x * 0.014 + ball.y * 0.009);
+    const speedFactor = clamp(speed / ball.baseSpeed, 0.78, 2.85) * phaseCfg.spin;
+    const pulseWave = 0.62 + 0.38 * Math.sin(now * (0.0108 + state.phase * 0.0035) + ball.x * 0.014 + ball.y * 0.009);
+    const pulse = clamp(pulseWave * phaseCfg.pulse, 0.12, 2.65);
     const coreRadius = Math.max(ball.size * 0.84, 11);
     const auraRadius = coreRadius * (2 + pulse * 0.24);
 
@@ -1712,6 +1933,44 @@
         z: r.z
       };
     });
+
+    if (state.phase >= 3) {
+      ctx.save();
+      ctx.globalCompositeOperation = "lighter";
+
+      const halo = ctx.createRadialGradient(ball.x, ball.y, coreRadius * 0.12, ball.x, ball.y, coreRadius * 2.15);
+      halo.addColorStop(0, "rgba(255,255,255,0.18)");
+      halo.addColorStop(0.42, "rgba(255,255,255,0.06)");
+      halo.addColorStop(1, "rgba(0,0,0,0)");
+      ctx.fillStyle = halo;
+      ctx.beginPath();
+      ctx.arc(ball.x, ball.y, coreRadius * 2.15, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.globalCompositeOperation = "source-over";
+      ctx.fillStyle = "#040507";
+      ctx.beginPath();
+      ctx.arc(ball.x, ball.y, coreRadius * 0.98, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.strokeStyle = "rgba(255,255,255,0.85)";
+      ctx.lineWidth = 1.05;
+      ctx.shadowBlur = 16;
+      ctx.shadowColor = "rgba(255,255,255,0.66)";
+      for (let i = 0; i < 8; i += 1) {
+        const a = now * 0.01 + i * (Math.PI * 2 / 8);
+        const r = coreRadius * (0.18 + 0.3 * Math.abs(Math.sin(now * 0.007 + i)));
+        ctx.beginPath();
+        ctx.moveTo(ball.x + Math.cos(a) * r, ball.y + Math.sin(a) * r);
+        ctx.lineTo(
+          ball.x + Math.cos(a + 0.7) * (r + coreRadius * 0.38),
+          ball.y + Math.sin(a + 0.7) * (r + coreRadius * 0.38)
+        );
+        ctx.stroke();
+      }
+      ctx.restore();
+      return;
+    }
 
     ctx.save();
     ctx.globalCompositeOperation = "lighter";
@@ -1842,6 +2101,11 @@
     updatePlayer(dt, now);
     updateCpu(dt);
     updateBall(dt, themeManager.canvas);
+    if (state.returnCount !== state.lastRallySync) {
+      const milestone = state.returnCount > 0 && state.returnCount % 5 === 0;
+      updatePhase(state.returnCount, milestone);
+      state.lastRallySync = state.returnCount;
+    }
     updateParticles(dt);
     drawScene(now, themeManager.canvas);
 
@@ -1854,7 +2118,7 @@
   }
 
   function primeAudio() {
-    soundManager.unlock();
+    soundEngine.unlock();
   }
 
   window.addEventListener("pointerdown", primeAudio, { passive: true });
@@ -1978,13 +2242,13 @@
     }
   });
 
-  soundManager = new SoundManager();
-  announcer = new ToxicAnnouncer();
+  soundEngine = new SoundEngine();
   uiFx = new VisualSyncManager(appRoot);
 
   themeManager = new ThemeManager();
   themeManager.apply(new Date());
   themeManager.watchMidnight(() => {
+    updatePhase(state.returnCount, false);
     drawScene(performance.now(), themeManager.canvas);
   });
 
@@ -1996,6 +2260,7 @@
 
   syncUnfairLabel();
   startTitleGlitchLoop();
+  updatePhase(state.returnCount, false);
 
   setOverlay("START SIGNAL을 눌러 시작", "PC: 화살표/W/S, 마우스 이동 | 모바일: 터치 드래그", true, false);
   drawScene(performance.now(), themeManager.canvas);

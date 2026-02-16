@@ -21,6 +21,16 @@
   --line-soft: rgba(0, 243, 255, 0.36);
   --danger: #ff3c89;
   --label-gray: #888888;
+  --theme-primary: #2e9cff;
+  --theme-secondary: #00e4ff;
+  --theme-bg: #040c1b;
+  --theme-text: #88deff;
+  --theme-primary-soft: rgba(46, 156, 255, 0.24);
+  --theme-secondary-soft: rgba(0, 228, 255, 0.22);
+  --theme-bg-panel: rgba(5, 10, 18, 0.88);
+  --theme-bg-shell: rgba(2, 6, 12, 0.9);
+  --glow-intensity: 0.45;
+  --grid-speed: 280ms;
   --core-inner: rgba(0, 243, 255, 0.38);
   --core-outer: rgba(255, 0, 255, 0.28);
   --pulse-flash-a: rgba(0, 243, 255, 0.88);
@@ -44,17 +54,18 @@ body {
 body {
   margin: 0;
   overflow-x: hidden;
-  color: var(--terminal-green);
+  color: var(--theme-text);
   font-family: var(--font-ui);
   font-weight: 700;
   font-size: 24px;
   letter-spacing: 0.02em;
   background:
-    radial-gradient(72vw 42vh at 8% 0%, rgba(255, 0, 255, 0.16), transparent 66%),
-    radial-gradient(58vw 38vh at 90% 6%, rgba(0, 243, 255, 0.14), transparent 72%),
-    #12001f url("noise-texture-placeholder");
+    radial-gradient(72vw 42vh at 8% 0%, var(--theme-primary-soft), transparent 66%),
+    radial-gradient(58vw 38vh at 90% 6%, var(--theme-secondary-soft), transparent 72%),
+    var(--theme-bg) url("noise-texture-placeholder");
   background-attachment: fixed;
   position: relative;
+  transition: background 1s ease, color 1s ease, filter 1s ease;
 }
 
 body.theme-cyberpunk {
@@ -129,6 +140,22 @@ body.theme-april-fools {
   --line-sub: rgba(0, 255, 252, 0.78);
   --core-inner: rgba(0, 255, 252, 0.42);
   --core-outer: rgba(255, 74, 200, 0.34);
+}
+
+body.phase-0 {
+  --glow-intensity: 0.45;
+}
+
+body.phase-1 {
+  --glow-intensity: 0.7;
+}
+
+body.phase-2 {
+  --glow-intensity: 0.84;
+}
+
+body.phase-3 {
+  --glow-intensity: 0.96;
 }
 
 .bg-shapes {
@@ -258,7 +285,7 @@ body.theme-april-fools {
   padding: 28px;
   position: relative;
   z-index: 10;
-  color: var(--terminal-green);
+  color: var(--theme-text);
   background: linear-gradient(180deg, var(--panel-mid), var(--panel-dark));
   border: 4px double var(--line-main);
   clip-path: polygon(
@@ -273,13 +300,13 @@ body.theme-april-fools {
   );
   box-shadow:
     0 0 0 2px rgba(255, 0, 255, 0.5) inset,
-    0 0 34px rgba(0, 243, 255, 0.4),
+    0 0 34px var(--pulse-flash-a),
     -2px 0 rgba(255, 0, 255, 0.3),
     2px 0 rgba(0, 243, 255, 0.34);
   animation: rgb-split 2.3s steps(2, end) infinite;
-  transition: transform 50ms ease-out, scale 50ms ease-out, box-shadow 120ms ease-out;
+  transition: background 1s ease, border-color 1s ease, box-shadow 1s ease, color 1s ease, filter 1s ease;
   transform-origin: center;
-  will-change: transform, box-shadow, scale;
+  will-change: transform, box-shadow;
 }
 
 .app::before,
@@ -332,25 +359,6 @@ body.window-vibe .app {
   animation: window-vibe 210ms steps(2, end) infinite, rgb-split 2.3s steps(2, end) infinite;
 }
 
-.game-console.kick-pulse {
-  scale: 1.02;
-  box-shadow:
-    0 0 0 2px rgba(255, 0, 255, 0.55) inset,
-    0 0 44px rgba(0, 243, 255, 0.5),
-    -2px 0 rgba(255, 0, 255, 0.34),
-    2px 0 rgba(0, 243, 255, 0.38),
-    0 0 38px var(--pulse-flash-a),
-    0 0 58px var(--pulse-flash-b);
-}
-
-.game-console.kick-pulse::before {
-  opacity: 0.94;
-}
-
-.game-console.kick-pulse::after {
-  opacity: 0.82;
-}
-
 .game-console.ui-rgb-split .main-title,
 .game-console.ui-rgb-split .eyebrow,
 .game-console.ui-rgb-split .subtitle,
@@ -363,6 +371,50 @@ body.window-vibe .app {
 .game-console.ui-rgb-split .overlay-card h2,
 .game-console.ui-rgb-split .overlay-card p {
   animation: ui-rgb-hit 90ms steps(2, end) 1;
+}
+
+.game-console.phase-camera-shake {
+  animation: phase-camera-shake 180ms steps(2, end) infinite, rgb-split 1.4s steps(2, end) infinite;
+}
+
+.game-console.phase-glitch {
+  transition-duration: 0s !important;
+  animation: rgb-split 220ms steps(2, end) infinite;
+  filter: invert(1) hue-rotate(180deg) contrast(1.18) saturate(0.76);
+}
+
+.game-console.phase-glitch .main-title,
+.game-console.phase-glitch .subtitle,
+.game-console.phase-glitch .theme-pill,
+.game-console.phase-glitch .stat strong,
+.game-console.phase-glitch .ranking h2 {
+  text-shadow:
+    -4px 0 rgba(255, 0, 0, 0.82),
+    4px 0 rgba(0, 110, 255, 0.82),
+    0 0 10px rgba(255, 255, 255, 0.58);
+}
+
+.game-console.phase-flash-amber {
+  animation: phase-flash-amber 190ms ease-out 1;
+}
+
+.game-console.phase-flash-red {
+  animation: phase-flash-red 190ms ease-out 1;
+}
+
+.game-console.phase-flash-void {
+  animation: phase-flash-void 190ms ease-out 1;
+}
+
+.app,
+.stage-wrap,
+.canvas-shell,
+.theme-pill,
+.stat,
+.ranking,
+.controls button,
+.overlay-card {
+  transition: background 1s ease, border-color 1s ease, box-shadow 1s ease, color 1s ease, filter 1s ease;
 }
 
 .topbar {
@@ -635,22 +687,24 @@ body.window-vibe .app {
 .stage-wrap {
   position: relative;
   padding: 14px;
-  border: 3px solid rgba(0, 243, 255, 0.46);
-  background: rgba(4, 1, 11, 0.9);
+  border: 3px solid var(--line-main);
+  background: var(--theme-bg-panel);
   box-shadow:
-    inset 0 0 0 1px rgba(255, 0, 255, 0.32),
-    0 0 20px rgba(0, 243, 255, 0.24);
+    inset 0 0 0 1px var(--line-sub),
+    0 0 20px var(--pulse-flash-a);
+  transition: border-color 1s ease, background 1s ease, box-shadow 1s ease;
 }
 
 .canvas-shell {
   position: relative;
   overflow: hidden;
   isolation: isolate;
-  border: 2px solid rgba(255, 0, 255, 0.45);
-  background: #050009;
+  border: 2px solid var(--line-sub);
+  background: var(--theme-bg-shell);
   box-shadow:
     inset 0 0 24px rgba(0, 0, 0, 0.8),
-    0 0 22px rgba(0, 243, 255, 0.16);
+    0 0 22px var(--pulse-flash-a);
+  transition: border-color 1s ease, background 1s ease, box-shadow 1s ease, filter 1s ease;
 }
 
 #gameCanvas {
@@ -660,9 +714,10 @@ body.window-vibe .app {
   width: 100%;
   height: auto;
   aspect-ratio: 16 / 9;
-  background: #050009;
+  background: var(--theme-bg);
   touch-action: none;
   animation: core-canvas-luminance 4.8s ease-in-out infinite;
+  transition: background 1s ease, filter 1s ease;
 }
 
 .canvas-shell::before,
@@ -714,7 +769,7 @@ body.window-vibe .app {
   );
   opacity: 0.12;
   mix-blend-mode: screen;
-  animation: noise-shift 280ms steps(2, end) infinite;
+  animation: noise-shift var(--grid-speed) steps(2, end) infinite;
 }
 
 .chaos-emoji {
@@ -1017,6 +1072,63 @@ body.window-vibe .app {
       2px 0 rgba(0, 243, 255, 0.75),
       -2px 0 rgba(255, 0, 255, 0.75);
     filter: saturate(1.15);
+  }
+}
+
+@keyframes phase-camera-shake {
+  0% {
+    transform: translate(0, 0);
+  }
+  25% {
+    transform: translate(-1px, 1px);
+  }
+  50% {
+    transform: translate(1px, -1px);
+  }
+  75% {
+    transform: translate(-1px, -1px);
+  }
+  100% {
+    transform: translate(0, 0);
+  }
+}
+
+@keyframes phase-flash-amber {
+  0% {
+    box-shadow:
+      0 0 0 2px rgba(255, 140, 0, 0.88) inset,
+      0 0 52px rgba(255, 203, 83, 0.95);
+  }
+  100% {
+    box-shadow:
+      0 0 0 2px rgba(255, 0, 255, 0.5) inset,
+      0 0 34px rgba(0, 243, 255, 0.4);
+  }
+}
+
+@keyframes phase-flash-red {
+  0% {
+    box-shadow:
+      0 0 0 2px rgba(255, 48, 72, 0.95) inset,
+      0 0 62px rgba(255, 35, 76, 0.98);
+  }
+  100% {
+    box-shadow:
+      0 0 0 2px rgba(255, 0, 255, 0.5) inset,
+      0 0 34px rgba(0, 243, 255, 0.4);
+  }
+}
+
+@keyframes phase-flash-void {
+  0% {
+    box-shadow:
+      0 0 0 2px rgba(255, 255, 255, 0.98) inset,
+      0 0 62px rgba(255, 255, 255, 0.98);
+  }
+  100% {
+    box-shadow:
+      0 0 0 2px rgba(255, 0, 255, 0.5) inset,
+      0 0 34px rgba(0, 243, 255, 0.4);
   }
 }
 
