@@ -232,57 +232,57 @@
   const phaseConfigs = [
     {
       id: 0,
-      name: "THE UNFAIR GLITCH",
+      name: "ARCADE LOBBY",
       primary: "#ff00ff",
       secondary: "#00ffff",
-      bg: "#1a0b2e",
-      text: "#fce9ff",
-      glow: 0.9,
-      gridSpeedMs: 320,
-      trailLife: 1,
-      trailScale: 1,
+      bg: "#0a001a",
+      text: "#efe6ff",
+      glow: 1,
+      gridSpeedMs: 7600,
+      trailLife: 1.05,
+      trailScale: 1.04,
       spin: 1,
       pulse: 1
     },
     {
       id: 1,
-      name: "GLITCH SURGE",
+      name: "SIGNAL SPARK",
       primary: "#ff2de2",
-      secondary: "#0dfdff",
-      bg: "#19092f",
-      text: "#ffe8ff",
-      glow: 0.94,
-      gridSpeedMs: 248,
-      trailLife: 1.15,
-      trailScale: 1.1,
+      secondary: "#02eeff",
+      bg: "#120126",
+      text: "#f1e8ff",
+      glow: 1.05,
+      gridSpeedMs: 4200,
+      trailLife: 1.2,
+      trailScale: 1.14,
       spin: 1.15,
       pulse: 1.1
     },
     {
       id: 2,
-      name: "OVERCLOCKED CHAOS",
+      name: "GLITCH OVERDRIVE",
       primary: "#ff00c6",
       secondary: "#2bf3ff",
-      bg: "#1a0530",
-      text: "#ffe8ff",
-      glow: 0.98,
-      gridSpeedMs: 180,
-      trailLife: 1.25,
-      trailScale: 1.18,
+      bg: "#140128",
+      text: "#f7eaff",
+      glow: 1.12,
+      gridSpeedMs: 2600,
+      trailLife: 1.38,
+      trailScale: 1.28,
       spin: 1.36,
       pulse: 1.3
     },
     {
       id: 3,
-      name: "CINEMATIC SHIFT",
+      name: "GOD MODE",
       primary: "#ffd700",
-      secondary: "#4b0082",
-      bg: "#170622",
-      text: "#fff1c9",
-      glow: 1.15,
-      gridSpeedMs: 82,
-      trailLife: 2.1,
-      trailScale: 2,
+      secondary: "#4169e1",
+      bg: "#070214",
+      text: "#fff4d3",
+      glow: 1.34,
+      gridSpeedMs: 900,
+      trailLife: 2.35,
+      trailScale: 2.2,
       spin: 2.24,
       pulse: 2.45
     }
@@ -364,9 +364,10 @@
 
       this.phase = 0;
       this.rally = 0;
-      this.currentTempo = 94;
-      this.targetTempo = 94;
+      this.currentTempo = 102;
+      this.targetTempo = 102;
       this.isEpicMode = false;
+      this.crossfadeSeconds = 2;
 
       this.normalGain = null;
       this.epicGain = null;
@@ -379,7 +380,7 @@
 
       this.normalProgression = [0, -5, 2, -3];
       this.epicProgression = [0, 3, 7, -2];
-      this.normalMelody = [0, 2, 4, 7, 9, 7, 4, 2];
+      this.normalMelody = [0, 4, 7, 9, 7, 4, 2, 4];
     }
 
     ensureContext() {
@@ -493,11 +494,11 @@
       this.phase = clamp(phase || 0, 0, 3);
       const intensity = clamp(this.rally / 24, 0, 1);
       this.targetTempo = this.isEpicMode
-        ? 128 + intensity * 22
-        : 92 + intensity * 12;
+        ? 126 + intensity * 18
+        : 98 + intensity * 14;
       if (!this.ctx) return;
       const t = this.ctx.currentTime;
-      this.musicBus.gain.setTargetAtTime(this.isEpicMode ? 0.78 : 0.66, t, 0.4);
+      this.musicBus.gain.setTargetAtTime(this.isEpicMode ? 0.84 : 0.7, t, 0.4);
     }
 
     startBgm() {
@@ -513,7 +514,7 @@
       this.epicGain.gain.cancelScheduledValues(t);
       this.normalGain.gain.setValueAtTime(0.0001, t);
       this.epicGain.gain.setValueAtTime(0.0001, t);
-      this.normalGain.gain.exponentialRampToValueAtTime(0.48, t + 1.2);
+      this.normalGain.gain.exponentialRampToValueAtTime(0.52, t + 1.2);
       this.epicGain.gain.exponentialRampToValueAtTime(0.0001, t + 0.1);
       this.sfxVerbSend.gain.setTargetAtTime(0.08, t, 0.3);
       this.sfxVerbGain.gain.setTargetAtTime(0.08, t, 0.3);
@@ -547,20 +548,20 @@
       const chordIdx = Math.floor(this.beatIndex / 4) % this.normalProgression.length;
       const base = 164.81 * Math.pow(2, this.normalProgression[chordIdx] / 12);
       const chord = [0, 4, 7];
-      const padDuration = beatInterval * 2.6;
-      const intensity = clamp(this.rally / 20, 0, 1);
+      const padDuration = beatInterval * 2.45;
+      const intensity = clamp(this.rally / 22, 0, 1);
 
       for (const semi of chord) {
         this.playTone(this.normalBus, {
           when: t,
           frequency: base * Math.pow(2, semi / 12),
           type: "triangle",
-          attack: 0.05,
+          attack: 0.03,
           release: padDuration,
-          gain: 0.032 + intensity * 0.018,
+          gain: 0.03 + intensity * 0.016,
           filterType: "lowpass",
-          filterFreq: 1400 + intensity * 700,
-          q: 0.8
+          filterFreq: 1700 + intensity * 540,
+          q: 0.9
         });
       }
 
@@ -570,26 +571,51 @@
           frequency: base * 0.5,
           type: "sine",
           attack: 0.005,
-          release: beatInterval * 0.55,
-          gain: 0.07 + intensity * 0.02,
+          release: beatInterval * 0.52,
+          gain: 0.08 + intensity * 0.02,
           filterType: "lowpass",
-          filterFreq: 260,
+          filterFreq: 320,
           q: 1
+        });
+
+        this.playTone(this.normalBus, {
+          when: t + beatInterval * 0.04,
+          frequency: base,
+          type: "square",
+          attack: 0.002,
+          release: beatInterval * 0.14,
+          gain: 0.036 + intensity * 0.01,
+          filterType: "bandpass",
+          filterFreq: 1050,
+          q: 2.1
         });
       }
 
       const melIdx = this.beatIndex % this.normalMelody.length;
       const leadSemi = this.normalMelody[melIdx];
+      const leadFreq = base * Math.pow(2, (leadSemi + 12) / 12);
       this.playTone(this.normalBus, {
-        when: t + beatInterval * 0.18,
-        frequency: base * Math.pow(2, (leadSemi + 12) / 12),
-        type: "sine",
-        attack: 0.006,
-        release: beatInterval * 0.42,
-        gain: 0.05 + intensity * 0.02,
+        when: t + beatInterval * 0.16,
+        frequency: leadFreq,
+        type: "square",
+        attack: 0.002,
+        release: beatInterval * 0.34,
+        gain: 0.07 + intensity * 0.02,
         filterType: "bandpass",
-        filterFreq: 1800 + intensity * 600,
-        q: 2.8
+        filterFreq: 2100 + intensity * 650,
+        q: 3.6
+      });
+
+      this.playTone(this.normalBus, {
+        when: t + beatInterval * 0.16,
+        frequency: leadFreq * 2,
+        type: "triangle",
+        attack: 0.002,
+        release: beatInterval * 0.22,
+        gain: 0.026 + intensity * 0.012,
+        filterType: "highpass",
+        filterFreq: 2800,
+        q: 0.8
       });
     }
 
@@ -598,59 +624,85 @@
       if (this.epicGain.gain.value < 0.0002) return;
 
       const idx = Math.floor(this.beatIndex / 4) % this.epicProgression.length;
-      const root = 55 * Math.pow(2, this.epicProgression[idx] / 12);
+      const root = 49 * Math.pow(2, this.epicProgression[idx] / 12);
       const chord = [0, 7, 12, 16];
-      const intensity = clamp(this.rally / 26, 0, 1);
+      const intensity = clamp(this.rally / 24, 0, 1);
 
       for (const semi of chord) {
         const freq = root * Math.pow(2, semi / 12);
-        for (const detune of [-11, 11]) {
+        for (const detune of [-8, 8]) {
           this.playTone(this.epicBus, {
             when: t,
             frequency: freq,
             detune,
             type: "sawtooth",
-            attack: 0.01,
-            release: beatInterval * 3.6,
-            gain: 0.04 + intensity * 0.02,
+            attack: 0.018,
+            release: beatInterval * 3.85,
+            gain: 0.034 + intensity * 0.016,
             filterType: "lowpass",
-            filterFreq: 2200 + intensity * 700,
-            q: 0.9
+            filterFreq: 1500 + intensity * 680,
+            q: 0.86
           });
         }
+
+        this.playTone(this.epicBus, {
+          when: t + beatInterval * 0.02,
+          frequency: freq * 2,
+          type: "triangle",
+          attack: 0.009,
+          release: beatInterval * 2.25,
+          gain: 0.014 + intensity * 0.008,
+          filterType: "highpass",
+          filterFreq: 2400,
+          q: 0.75
+        });
       }
 
       if (this.beatIndex % 2 === 0) {
         this.playTone(this.epicBus, {
           when: t,
-          frequency: root * 0.5,
+          frequency: root * 0.48,
           type: "sine",
-          attack: 0.004,
-          release: beatInterval * 0.45,
-          gain: 0.12,
+          attack: 0.002,
+          release: beatInterval * 0.58,
+          gain: 0.17 + intensity * 0.03,
           filterType: "lowpass",
-          filterFreq: 240,
-          q: 1.1
+          filterFreq: 190,
+          q: 1.25
         });
 
         this.playNoise(this.epicBus, {
           when: t,
           attack: 0.002,
-          release: beatInterval * 0.26,
-          gain: 0.045,
+          release: beatInterval * 0.31,
+          gain: 0.072,
           filterType: "bandpass",
-          filterFreq: 1400,
-          q: 2.2
+          filterFreq: 1050,
+          q: 1.9
+        });
+      }
+
+      if (this.beatIndex % 4 === 1) {
+        this.playTone(this.epicBus, {
+          when: t + beatInterval * 0.08,
+          frequency: root * 2.02,
+          type: "sawtooth",
+          attack: 0.006,
+          release: beatInterval * 0.52,
+          gain: 0.1 + intensity * 0.028,
+          filterType: "bandpass",
+          filterFreq: 980 + intensity * 260,
+          q: 2.4
         });
       }
 
       this.playNoise(this.epicBus, {
         when: t + beatInterval * 0.5,
         attack: 0.001,
-        release: beatInterval * 0.08,
-        gain: 0.015 + intensity * 0.012,
+        release: beatInterval * 0.1,
+        gain: 0.018 + intensity * 0.016,
         filterType: "highpass",
-        filterFreq: 6200 + intensity * 700,
+        filterFreq: 5400 + intensity * 1400,
         q: 0.7
       });
     }
@@ -798,60 +850,60 @@
         const impact = clamp(power, 0.9, 2.4);
         this.playTone(this.sfxBus, {
           when: t,
-          frequency: random(88, 118),
+          frequency: random(74, 96),
           type: "sawtooth",
           attack: 0.002,
-          release: 0.28,
-          gain: 0.2 + impact * 0.09,
+          release: 0.36,
+          gain: 0.25 + impact * 0.1,
           filterType: "lowpass",
-          filterFreq: 520,
-          q: 0.8
+          filterFreq: 440,
+          q: 0.9
         });
         this.playTone(this.sfxBus, {
           when: t + 0.01,
-          frequency: random(170, 240),
+          frequency: random(142, 188),
           type: "triangle",
           attack: 0.002,
-          release: 0.22,
-          gain: 0.13 + impact * 0.05,
+          release: 0.26,
+          gain: 0.15 + impact * 0.06,
           filterType: "bandpass",
-          filterFreq: 820,
-          q: 1.5
+          filterFreq: 760,
+          q: 1.7
         });
         this.playNoise(this.sfxBus, {
           when: t,
           attack: 0.001,
-          release: 0.19,
-          gain: 0.1,
+          release: 0.24,
+          gain: 0.13,
           filterType: "bandpass",
-          filterFreq: 720,
-          q: 1.2
+          filterFreq: 680,
+          q: 1.4
         });
         return;
       }
 
-      const base = random(460, 560) * (0.92 + power * 0.18);
+      const base = random(520, 620) * (0.9 + power * 0.17);
       this.playTone(this.sfxBus, {
         when: t,
         frequency: base,
         type: "square",
         attack: 0.002,
-        release: 0.11,
-        gain: 0.12 + power * 0.05,
+        release: 0.1,
+        gain: 0.13 + power * 0.05,
         filterType: "bandpass",
-        filterFreq: 1750,
-        q: 2.2
+        filterFreq: 1880,
+        q: 2.4
       });
       this.playTone(this.sfxBus, {
         when: t + 0.01,
-        frequency: base * 1.5,
+        frequency: base * 1.62,
         type: "triangle",
         attack: 0.002,
-        release: 0.09,
+        release: 0.08,
         gain: 0.07 + power * 0.03,
         filterType: "highpass",
-        filterFreq: 2200,
-        q: 1
+        filterFreq: 2400,
+        q: 1.1
       });
     }
 
@@ -862,37 +914,37 @@
       if (this.isEpicMode) {
         this.playTone(this.sfxBus, {
           when: t,
-          frequency: random(72, 96),
+          frequency: random(60, 82),
           type: "sawtooth",
           attack: 0.001,
-          release: 0.34,
-          gain: 0.26,
+          release: 0.4,
+          gain: 0.3,
           filterType: "lowpass",
-          filterFreq: 460,
-          q: 0.9
+          filterFreq: 410,
+          q: 1
         });
         this.playNoise(this.sfxBus, {
           when: t + 0.005,
           attack: 0.001,
-          release: 0.24,
-          gain: 0.12,
+          release: 0.3,
+          gain: 0.15,
           filterType: "bandpass",
-          filterFreq: 930,
-          q: 1.4
+          filterFreq: 820,
+          q: 1.5
         });
         return;
       }
 
       this.playTone(this.sfxBus, {
         when: t,
-        frequency: random(760, 930),
+        frequency: random(820, 980),
         type: "triangle",
         attack: 0.001,
         release: 0.07,
-        gain: 0.11,
+        gain: 0.12,
         filterType: "highpass",
-        filterFreq: 1800,
-        q: 1
+        filterFreq: 1950,
+        q: 1.1
       });
     }
 
@@ -951,32 +1003,33 @@
       if (this.isEpicMode) return;
 
       this.isEpicMode = true;
-      this.targetTempo = 130;
+      this.targetTempo = 128;
       const t = c.currentTime;
+      const fade = this.crossfadeSeconds;
 
       this.normalGain.gain.cancelScheduledValues(t);
       this.normalGain.gain.setValueAtTime(Math.max(0.0001, this.normalGain.gain.value), t);
-      this.normalGain.gain.exponentialRampToValueAtTime(0.0001, t + 2);
+      this.normalGain.gain.exponentialRampToValueAtTime(0.0001, t + fade);
 
       this.epicGain.gain.cancelScheduledValues(t);
       this.epicGain.gain.setValueAtTime(Math.max(0.0001, this.epicGain.gain.value), t);
-      this.epicGain.gain.exponentialRampToValueAtTime(0.58, t + 2);
+      this.epicGain.gain.exponentialRampToValueAtTime(0.62, t + fade);
 
-      this.sfxVerbSend.gain.setTargetAtTime(0.34, t, 0.45);
-      this.sfxVerbGain.gain.setTargetAtTime(0.38, t, 0.45);
-      this.epicReverbGain.gain.setTargetAtTime(0.46, t, 0.6);
+      this.sfxVerbSend.gain.setTargetAtTime(0.38, t, 0.45);
+      this.sfxVerbGain.gain.setTargetAtTime(0.42, t, 0.45);
+      this.epicReverbGain.gain.setTargetAtTime(0.5, t, 0.6);
     }
 
     disableEpicLayer(immediate = false) {
       if (!this.ctx || !this.normalGain || !this.epicGain) return;
       this.isEpicMode = false;
       const t = this.ctx.currentTime;
-      const fade = immediate ? 0.09 : 2;
-      this.targetTempo = 96;
+      const fade = immediate ? 0.09 : this.crossfadeSeconds;
+      this.targetTempo = 100;
 
       this.normalGain.gain.cancelScheduledValues(t);
       this.normalGain.gain.setValueAtTime(Math.max(0.0001, this.normalGain.gain.value), t);
-      this.normalGain.gain.exponentialRampToValueAtTime(0.48, t + fade);
+      this.normalGain.gain.exponentialRampToValueAtTime(0.52, t + fade);
 
       this.epicGain.gain.cancelScheduledValues(t);
       this.epicGain.gain.setValueAtTime(Math.max(0.0001, this.epicGain.gain.value), t);
@@ -1345,8 +1398,10 @@
     body.style.setProperty("--pulse-flash-b", rgba(primary, 0.86));
     body.style.setProperty("--grid-line-color", rgba(primary, cfg.id >= 3 ? 0.86 : 0.78));
     body.style.setProperty("--grid-accent-color", rgba(secondary, cfg.id >= 3 ? 0.5 : 0.44));
+    body.style.setProperty("--grid-bloom-primary", rgba(primary, cfg.id >= 3 ? 0.66 : 0.42));
+    body.style.setProperty("--grid-bloom-secondary", rgba(secondary, cfg.id >= 3 ? 0.58 : 0.3));
+    body.style.setProperty("--noise-opacity", cfg.id >= 3 ? "0.065" : "0.05");
     body.style.setProperty("--crt-line-alpha", cfg.id >= 3 ? "0.14" : "0.24");
-    body.style.background = cfg.bg;
 
     body.classList.remove("phase-0", "phase-1", "phase-2", "phase-3");
     body.classList.add(`phase-${cfg.id}`);
@@ -1625,7 +1680,12 @@
     const sizeMul = phaseCfg.trailScale;
 
     const speedFactor = clamp(speed / ball.baseSpeed, 0.8, 3.4);
-    const emitCount = Math.round(clamp(3 + speedFactor * 1.8 + burst + dt * 40 + state.phase * 0.75, 3, 14));
+    const epicBoost = state.isEpicMode ? 4.8 : 0;
+    const emitCount = Math.round(clamp(
+      3 + speedFactor * 1.8 + burst + dt * 40 + state.phase * 0.75 + epicBoost,
+      3,
+      state.isEpicMode ? 22 : 14
+    ));
     const inv = speed > 0 ? 1 / speed : 0;
     const dirX = ball.vx * inv;
     const dirY = ball.vy * inv;
@@ -1635,7 +1695,7 @@
     const sideY = dirX;
 
     for (let i = 0; i < emitCount; i += 1) {
-      const type = Math.random() < 0.62 ? "spark" : "wisp";
+      const type = Math.random() < (state.isEpicMode ? 0.74 : 0.62) ? "spark" : "wisp";
       const backOffset = random(0, ball.size * 0.86);
       const sideOffset = random(-ball.size * 0.35, ball.size * 0.35);
       const x = ball.x + tailX * backOffset + sideX * sideOffset + random(-1.1, 1.1);
@@ -1677,7 +1737,11 @@
     const delta = normalizeAngle(nextAngle - prevAngle);
     const turnDir = Math.sign(delta) || 1;
     const arcSpan = Math.min(Math.abs(delta), Math.PI * 0.88);
-    const count = Math.round(clamp(11 + nextSpeed / 62 + state.phase * 1.8, 12, 32));
+    const count = Math.round(clamp(
+      11 + nextSpeed / 62 + state.phase * 1.8 + (state.isEpicMode ? 8 : 0),
+      12,
+      state.isEpicMode ? 44 : 32
+    ));
 
     for (let i = 0; i < count; i += 1) {
       const t = i / Math.max(1, count - 1);
@@ -1722,11 +1786,11 @@
 
   function updateStarStreaks(dt) {
     if (state.isEpicMode) {
-      const spawnCount = Math.round(clamp(18 + dt * 60 * 22, 18, 46));
+      const spawnCount = Math.round(clamp(24 + dt * 60 * 30, 24, 60));
       for (let i = 0; i < spawnCount; i += 1) {
         const angle = random(0, Math.PI * 2);
-        const speed = random(620, 2100);
-        const life = random(0.18, 0.52);
+        const speed = random(900, 2600);
+        const life = random(0.16, 0.5);
         starStreaks.push({
           x: W / 2 + random(-7, 7),
           y: H / 2 + random(-7, 7),
@@ -1745,7 +1809,7 @@
       const s = starStreaks[i];
       s.prevX = s.x;
       s.prevY = s.y;
-      const warpAccel = state.isEpicMode ? 2.7 : 0.8;
+      const warpAccel = state.isEpicMode ? 3.9 : 0.8;
       s.vx *= 1 + dt * warpAccel;
       s.vy *= 1 + dt * warpAccel;
       s.x += s.vx * dt;
@@ -1758,8 +1822,8 @@
       }
     }
 
-    if (starStreaks.length > 360) {
-      starStreaks.splice(0, starStreaks.length - 360);
+    if (starStreaks.length > 440) {
+      starStreaks.splice(0, starStreaks.length - 440);
     }
   }
 
@@ -1770,9 +1834,13 @@
 
     for (const s of starStreaks) {
       const a = clamp(s.life / s.maxLife, 0, 1);
-      ctx.globalAlpha = 0.12 + a * 0.7;
-      ctx.strokeStyle = a > 0.5 ? "rgba(255,255,255,0.95)" : "rgba(255,215,0,0.82)";
-      ctx.lineWidth = s.width * (1 + (1 - a) * 1.4);
+      ctx.globalAlpha = 0.14 + a * 0.78;
+      ctx.strokeStyle = a > 0.55
+        ? "rgba(255,255,255,0.98)"
+        : a > 0.26
+          ? "rgba(255,215,0,0.9)"
+          : "rgba(65,105,225,0.74)";
+      ctx.lineWidth = s.width * (1.1 + (1 - a) * 1.6);
       ctx.beginPath();
       ctx.moveTo(s.prevX, s.prevY);
       ctx.lineTo(s.x, s.y);
@@ -2060,7 +2128,7 @@
   }
 
   function drawVaporGrid(now, phaseCfg) {
-    const horizon = H * 0.58;
+    const horizon = H * 0.57;
     const floorHeight = H - horizon;
     const primary = parseColorRgb(phaseCfg.primary);
     const secondary = parseColorRgb(phaseCfg.secondary);
@@ -2068,31 +2136,45 @@
     ctx.save();
 
     const floorGradient = ctx.createLinearGradient(0, horizon, 0, H);
-    floorGradient.addColorStop(0, rgba(primary, state.isEpicMode ? 0.08 : 0.15));
-    floorGradient.addColorStop(1, rgba(primary, state.isEpicMode ? 0.22 : 0.32));
+    floorGradient.addColorStop(0, rgba(primary, state.isEpicMode ? 0.14 : 0.1));
+    floorGradient.addColorStop(0.54, rgba(primary, state.isEpicMode ? 0.26 : 0.18));
+    floorGradient.addColorStop(1, rgba(primary, state.isEpicMode ? 0.5 : 0.3));
     ctx.fillStyle = floorGradient;
     ctx.fillRect(0, horizon, W, floorHeight);
 
-    const horizontalLines = state.isEpicMode ? 28 : 18;
-    const travel = (now * (state.isEpicMode ? 0.0032 : 0.00115)) % 1;
+    const volumetricGlow = ctx.createRadialGradient(W / 2, horizon, 0, W / 2, horizon, H * 0.72);
+    volumetricGlow.addColorStop(0, rgba(primary, state.isEpicMode ? 0.36 : 0.2));
+    volumetricGlow.addColorStop(0.48, rgba(secondary, state.isEpicMode ? 0.26 : 0.12));
+    volumetricGlow.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.globalCompositeOperation = "screen";
+    ctx.fillStyle = volumetricGlow;
+    ctx.fillRect(0, horizon - floorHeight * 0.24, W, floorHeight * 1.26);
+
+    const horizontalLines = state.isEpicMode ? 34 : 20;
+    const travel = (now * (state.isEpicMode ? 0.0054 : 0.00062)) % 1;
+    ctx.lineCap = "round";
     for (let i = 0; i < horizontalLines; i += 1) {
       const t = ((i / horizontalLines) + travel) % 1;
-      const depth = Math.pow(t, 2.08);
+      const depth = Math.pow(t, 2.18);
       const y = horizon + depth * floorHeight;
-      const alpha = state.isEpicMode ? 0.26 + depth * 0.6 : 0.16 + depth * 0.48;
+      const alpha = state.isEpicMode ? 0.26 + depth * 0.72 : 0.12 + depth * 0.44;
       ctx.globalAlpha = alpha;
-      ctx.strokeStyle = rgba(primary, state.isEpicMode ? 0.84 : 0.68);
-      ctx.lineWidth = state.isEpicMode ? 1.6 : 1.2;
+      ctx.strokeStyle = rgba(primary, state.isEpicMode ? 0.92 : 0.74);
+      ctx.lineWidth = state.isEpicMode ? 2 : 1.2;
+      ctx.shadowBlur = state.isEpicMode ? 24 : 14;
+      ctx.shadowColor = rgba(primary, state.isEpicMode ? 0.86 : 0.58);
       ctx.beginPath();
       ctx.moveTo(0, y);
       ctx.lineTo(W, y);
       ctx.stroke();
     }
 
-    ctx.globalAlpha = state.isEpicMode ? 0.62 : 0.52;
-    ctx.strokeStyle = rgba(secondary, state.isEpicMode ? 0.72 : 0.54);
-    ctx.lineWidth = state.isEpicMode ? 1.35 : 1.1;
-    const columns = 17;
+    ctx.globalAlpha = state.isEpicMode ? 0.74 : 0.5;
+    ctx.strokeStyle = rgba(secondary, state.isEpicMode ? 0.82 : 0.56);
+    ctx.lineWidth = state.isEpicMode ? 1.55 : 1.05;
+    ctx.shadowBlur = state.isEpicMode ? 20 : 10;
+    ctx.shadowColor = rgba(secondary, state.isEpicMode ? 0.74 : 0.42);
+    const columns = state.isEpicMode ? 21 : 17;
     for (let i = -columns; i <= columns; i += 1) {
       const xBottom = W / 2 + i * (W / (columns * 1.25));
       const xTop = W / 2 + i * 13;
@@ -2101,6 +2183,13 @@
       ctx.lineTo(xBottom, H);
       ctx.stroke();
     }
+
+    const beam = ctx.createLinearGradient(0, horizon - 2, 0, horizon + floorHeight * 0.24);
+    beam.addColorStop(0, rgba(primary, state.isEpicMode ? 0.72 : 0.46));
+    beam.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.globalAlpha = state.isEpicMode ? 0.88 : 0.64;
+    ctx.fillStyle = beam;
+    ctx.fillRect(0, horizon - 3, W, state.isEpicMode ? 9 : 5);
 
     ctx.restore();
   }
@@ -2111,7 +2200,12 @@
     const secondary = parseColorRgb(phaseCfg.secondary);
     const mixed = mixRgb(primary, secondary, 0.5);
 
-    ctx.fillStyle = phaseCfg.bg;
+    const sky = ctx.createRadialGradient(W / 2, H * 0.08, 0, W / 2, H * 0.18, H * 1.08);
+    sky.addColorStop(0, state.isEpicMode ? "rgba(255,215,0,0.26)" : "rgba(255,0,255,0.2)");
+    sky.addColorStop(0.36, state.isEpicMode ? "rgba(65,105,225,0.2)" : "rgba(62,15,120,0.24)");
+    sky.addColorStop(0.74, phaseCfg.bg);
+    sky.addColorStop(1, "rgba(4,0,12,1)");
+    ctx.fillStyle = sky;
     ctx.fillRect(0, 0, W, H);
 
     drawVaporGrid(now, phaseCfg);
@@ -2135,12 +2229,12 @@
       ? rgba(mixRgb(primary, parseColorRgb("#fff0b6"), 0.3), 0.62)
       : rgba(primary, 0.19 + phaseCfg.glow * 0.2);
     const bloomB = state.isEpicMode
-      ? rgba(mixRgb(secondary, parseColorRgb("#b87aff"), 0.38), 0.54)
+      ? rgba(mixRgb(secondary, parseColorRgb("#9dbdff"), 0.42), 0.62)
       : rgba(secondary, 0.19 + phaseCfg.glow * 0.2);
-    const bloomBall = state.isEpicMode ? "rgba(255, 215, 0, 0.84)" : rgba(mixed, 0.22 + phaseCfg.glow * 0.24);
-    const playerBloomRadius = state.isEpicMode ? 196 : 124;
-    const cpuBloomRadius = state.isEpicMode ? 230 : 150;
-    const ballBloomRadius = state.isEpicMode ? 268 : 136;
+    const bloomBall = state.isEpicMode ? "rgba(255, 215, 0, 0.92)" : rgba(mixed, 0.22 + phaseCfg.glow * 0.24);
+    const playerBloomRadius = state.isEpicMode ? 212 : 124;
+    const cpuBloomRadius = state.isEpicMode ? 246 : 150;
+    const ballBloomRadius = state.isEpicMode ? 286 : 136;
 
     drawBloom(player.x + player.w / 2, player.y + player.h / 2, playerBloomRadius, bloomA);
     drawBloom(cpu.x + cpu.w / 2, cpu.y + cpu.h / 2, cpuBloomRadius, bloomB);
@@ -2149,8 +2243,9 @@
     if (state.isEpicMode) {
       ctx.save();
       const holy = ctx.createRadialGradient(W / 2, H * 0.18, 0, W / 2, H * 0.18, H * 0.88);
-      holy.addColorStop(0, "rgba(255, 242, 194, 0.34)");
-      holy.addColorStop(0.45, "rgba(255, 226, 148, 0.16)");
+      holy.addColorStop(0, "rgba(255, 246, 205, 0.42)");
+      holy.addColorStop(0.45, "rgba(255, 218, 122, 0.2)");
+      holy.addColorStop(0.72, "rgba(65, 105, 225, 0.15)");
       holy.addColorStop(1, "rgba(255, 226, 148, 0)");
       ctx.fillStyle = holy;
       ctx.fillRect(0, 0, W, H);
@@ -2298,7 +2393,7 @@
     const pulse = 0.62 + 0.38 * Math.sin(now * 0.012 + ball.x * 0.016 + ball.y * 0.012);
 
     if (state.isEpicMode) {
-      const radius = Math.max(8, ball.size * 0.62);
+      const radius = Math.max(9, ball.size * 0.68);
       const invSpeed = speed > 0 ? 1 / speed : 0;
       const tailX = -ball.vx * invSpeed;
       const tailY = -ball.vy * invSpeed;
@@ -2308,51 +2403,63 @@
       ctx.save();
       ctx.globalCompositeOperation = "lighter";
 
-      const halo = ctx.createRadialGradient(ball.x, ball.y, radius * 0.1, ball.x, ball.y, radius * 3.2);
+      const halo = ctx.createRadialGradient(ball.x, ball.y, radius * 0.08, ball.x, ball.y, radius * 4);
       halo.addColorStop(0, "rgba(255,255,255,1)");
-      halo.addColorStop(0.25, "rgba(255,248,214,0.78)");
-      halo.addColorStop(0.58, "rgba(255,215,0,0.46)");
-      halo.addColorStop(1, "rgba(75,0,130,0)");
+      halo.addColorStop(0.24, "rgba(255,248,214,0.9)");
+      halo.addColorStop(0.58, "rgba(255,215,0,0.6)");
+      halo.addColorStop(1, "rgba(65,105,225,0)");
       ctx.fillStyle = halo;
       ctx.beginPath();
-      ctx.arc(ball.x, ball.y, radius * 3.2, 0, Math.PI * 2);
+      ctx.arc(ball.x, ball.y, radius * 4, 0, Math.PI * 2);
       ctx.fill();
 
       ctx.lineCap = "round";
-      for (let i = 0; i < 10; i += 1) {
-        const spread = (i - 4.5) * 0.24;
-        const tailLength = radius * (3 + i * 0.42) * (0.94 + pulse * 0.14);
+      for (let i = 0; i < 16; i += 1) {
+        const spread = (i - 7.5) * 0.19;
+        const tailLength = radius * (4.8 + i * 0.46) * (0.96 + pulse * 0.2);
         const startX = ball.x + sideX * spread * radius * 0.4;
         const startY = ball.y + sideY * spread * radius * 0.4;
-        const endX = startX + tailX * tailLength + sideX * spread * radius * 0.55;
-        const endY = startY + tailY * tailLength + sideY * spread * radius * 0.55;
-        const alpha = 0.12 + (10 - i) * 0.06;
+        const endX = startX + tailX * tailLength + sideX * spread * radius * 0.78;
+        const endY = startY + tailY * tailLength + sideY * spread * radius * 0.78;
+        const alpha = 0.16 + (16 - i) * 0.046;
         ctx.strokeStyle = `rgba(255,215,0,${alpha.toFixed(3)})`;
-        ctx.lineWidth = 0.9 + (10 - i) * 0.18;
-        ctx.shadowBlur = 24;
-        ctx.shadowColor = "rgba(255,215,0,0.66)";
+        ctx.lineWidth = 1.2 + (16 - i) * 0.2;
+        ctx.shadowBlur = 30;
+        ctx.shadowColor = "rgba(255,215,0,0.78)";
         ctx.beginPath();
         ctx.moveTo(startX, startY);
         ctx.lineTo(endX, endY);
         ctx.stroke();
       }
 
+      for (let i = 0; i < 14; i += 1) {
+        const sparkAngle = random(0, Math.PI * 2);
+        const sparkDist = radius * random(0.4, 2.2);
+        const sx = ball.x + Math.cos(sparkAngle) * sparkDist + tailX * random(0, radius * 1.6);
+        const sy = ball.y + Math.sin(sparkAngle) * sparkDist + tailY * random(0, radius * 1.6);
+        const sparkSize = random(1, 3);
+        ctx.fillStyle = `rgba(255,226,148,${random(0.38, 0.82).toFixed(3)})`;
+        ctx.shadowBlur = 18;
+        ctx.shadowColor = "rgba(255,215,0,0.88)";
+        ctx.fillRect(sx, sy, sparkSize, sparkSize);
+      }
+
       const core = ctx.createRadialGradient(ball.x, ball.y, 0, ball.x, ball.y, radius * 1.12);
       core.addColorStop(0, "rgba(255,255,255,1)");
       core.addColorStop(0.4, "rgba(255,255,255,0.98)");
-      core.addColorStop(0.76, "rgba(255,236,168,0.9)");
+      core.addColorStop(0.76, "rgba(255,236,168,0.95)");
       core.addColorStop(1, "rgba(255,215,0,0)");
       ctx.fillStyle = core;
       ctx.beginPath();
       ctx.arc(ball.x, ball.y, radius * 1.12, 0, Math.PI * 2);
       ctx.fill();
 
-      ctx.lineWidth = 1.6 + pulse * 0.6;
-      ctx.strokeStyle = `rgba(255,215,0,${(0.44 + pulse * 0.24).toFixed(3)})`;
-      ctx.shadowBlur = 30;
-      ctx.shadowColor = "rgba(255,215,0,0.82)";
+      ctx.lineWidth = 1.8 + pulse * 0.7;
+      ctx.strokeStyle = `rgba(255,215,0,${(0.5 + pulse * 0.28).toFixed(3)})`;
+      ctx.shadowBlur = 36;
+      ctx.shadowColor = "rgba(255,215,0,0.88)";
       ctx.beginPath();
-      ctx.arc(ball.x, ball.y, radius * 1.44, 0, Math.PI * 2);
+      ctx.arc(ball.x, ball.y, radius * 1.56, 0, Math.PI * 2);
       ctx.stroke();
       ctx.restore();
       return;
@@ -2420,8 +2527,8 @@
       updatePhase(state.returnCount);
       state.lastRallySync = state.returnCount;
     }
-    // Phase shift trigger is intentionally exact: rally 15 enters epic mode once.
-    if (state.returnCount === 15 && !state.isEpicMode) {
+    // Enter God Mode at rally 15 or higher.
+    if (state.returnCount >= 15 && !state.isEpicMode) {
       triggerEpicMode();
     } else if (state.returnCount < 15 && state.isEpicMode) {
       clearEpicMode();
