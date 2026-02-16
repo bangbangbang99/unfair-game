@@ -236,6 +236,9 @@
   };
 
   let themeManager;
+  let soundManager;
+  let announcer;
+  let uiFx;
 
   class ThemeManager {
     constructor() {
@@ -267,6 +270,7 @@
       this.activeClass = cls;
       this.canvas = { ...def.canvas };
       themeNameEl.textContent = `${def.label} // ${def.badge}`;
+      if (uiFx) uiFx.syncTheme(this.canvas);
 
       randomizeBallAppearance(true);
       return this.canvas;
@@ -284,6 +288,397 @@
         }, next.getTime() - now.getTime());
       };
       schedule();
+    }
+  }
+
+  class SoundManager {
+    constructor() {
+      this.AudioContextClass = window.AudioContext || window.webkitAudioContext;
+      this.enabled = Boolean(this.AudioContextClass);
+      this.ctx = null;
+      this.master = null;
+      this.compressor = null;
+      this.distortionCurve = this.buildDistortionCurve(320);
+      this.noiseBuffer = null;
+    }
+
+    ensureContext() {
+      if (!this.enabled) return null;
+      if (this.ctx) return this.ctx;
+
+      this.ctx = new this.AudioContextClass();
+      this.master = this.ctx.createGain();
+      this.master.gain.value = 0.62;
+
+      this.compressor = this.ctx.createDynamicsCompressor();
+      this.compressor.threshold.value = -24;
+      this.compressor.knee.value = 24;
+      this.compressor.ratio.value = 10;
+      this.compressor.attack.value = 0.003;
+      this.compressor.release.value = 0.22;
+
+      this.master.connect(this.compressor);
+      this.compressor.connect(this.ctx.destination);
+      this.noiseBuffer = this.createNoiseBuffer();
+
+      return this.ctx;
+    }
+
+    unlock() {
+      const c = this.ensureContext();
+      if (!c) return Promise.resolve(false);
+      if (c.state === "suspended") {
+        return c.resume().then(() => true).catch(() => false);
+      }
+      return Promise.resolve(true);
+    }
+
+    buildDistortionCurve(amount = 300) {
+      const n = 44100;
+      const curve = new Float32Array(n);
+      const deg = Math.PI / 180;
+      for (let i = 0; i < n; i += 1) {
+        const x = (i * 2) / n - 1;
+        curve[i] = ((3 + amount) * x * 20 * deg) / (Math.PI + amount * Math.abs(x));
+      }
+      return curve;
+    }
+
+    createNoiseBuffer() {
+      const c = this.ctx;
+      if (!c) return null;
+      const sampleRate = c.sampleRate || 44100;
+      const len = Math.floor(sampleRate * 1.8);
+      const buf = c.createBuffer(1, len, sampleRate);
+      const data = buf.getChannelData(0);
+      for (let i = 0; i < len; i += 1) data[i] = random(-1, 1);
+      return buf;
+    }
+
+    createDistortion(amount = 280) {
+      if (!this.ctx) return null;
+      const node = this.ctx.createWaveShaper();
+      node.curve = amount === 320 ? this.distortionCurve : this.buildDistortionCurve(amount);
+      node.oversample = "4x";
+      return node;
+    }
+
+    playPaddleHit() {
+      const c = this.ensureContext();
+      if (!c) return;
+
+      const t = c.currentTime + 0.001;
+      const base = random(45, 59);
+
+      const kick = c.createOscillator();
+      kick.type = "sine";
+      kick.frequency.setValueAtTime(base * random(1.8, 2.3), t);
+      kick.frequency.exponentialRampToValueAtTime(base, t + 0.04);
+      kick.frequency.exponentialRampToValueAtTime(Math.max(30, base * 0.55), t + 0.24);
+
+      const sub = c.createOscillator();
+      sub.type = "triangle";
+      sub.frequency.setValueAtTime(base * 0.54, t);
+      sub.frequency.exponentialRampToValueAtTime(Math.max(20, base * 0.34), t + 0.24);
+
+      const kickGain = c.createGain();
+      kickGain.gain.setValueAtTime(0.0001, t);
+      kickGain.gain.exponentialRampToValueAtTime(0.9, t + 0.008);
+      kickGain.gain.exponentialRampToValueAtTime(0.0001, t + 0.24);
+
+      const subGain = c.createGain();
+      subGain.gain.setValueAtTime(0.0001, t);
+      subGain.gain.exponentialRampToValueAtTime(0.62, t + 0.01);
+      subGain.gain.exponentialRampToValueAtTime(0.0001, t + 0.26);
+
+      const lowpass = c.createBiquadFilter();
+      lowpass.type = "lowpass";
+      lowpass.frequency.setValueAtTime(780, t);
+      lowpass.frequency.exponentialRampToValueAtTime(120, t + 0.24);
+      lowpass.Q.value = 0.8;
+
+      const dist = this.createDistortion(420);
+      const out = c.createGain();
+      out.gain.setValueAtTime(0.62, t);
+
+      kick.connect(kickGain);
+      sub.connect(subGain);
+      kickGain.connect(lowpass);
+      subGain.connect(lowpass);
+      lowpass.connect(dist);
+      dist.connect(out);
+      out.connect(this.master);
+
+      kick.start(t);
+      sub.start(t);
+      kick.stop(t + 0.28);
+      sub.stop(t + 0.28);
+    }
+
+    playWallHit() {
+      const c = this.ensureContext();
+      if (!c) return;
+
+      const t = c.currentTime + 0.001;
+      const osc = c.createOscillator();
+      osc.type = "sawtooth";
+      osc.frequency.setValueAtTime(random(1250, 2100), t);
+      osc.frequency.exponentialRampToValueAtTime(random(240, 420), t + 0.07);
+
+      const gain = c.createGain();
+      gain.gain.setValueAtTime(0.0001, t);
+      gain.gain.exponentialRampToValueAtTime(0.35, t + 0.002);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.085);
+
+      const hp = c.createBiquadFilter();
+      hp.type = "highpass";
+      hp.frequency.setValueAtTime(1200, t);
+      hp.Q.value = 0.8;
+
+      const bp = c.createBiquadFilter();
+      bp.type = "bandpass";
+      bp.frequency.setValueAtTime(random(1700, 2800), t);
+      bp.frequency.exponentialRampToValueAtTime(random(900, 1300), t + 0.08);
+      bp.Q.value = 6;
+
+      osc.connect(hp);
+      hp.connect(bp);
+      bp.connect(gain);
+      gain.connect(this.master);
+
+      osc.start(t);
+      osc.stop(t + 0.1);
+    }
+
+    playScorePoint() {
+      const c = this.ensureContext();
+      if (!c) return;
+
+      const t = c.currentTime + 0.001;
+      const lead = c.createOscillator();
+      lead.type = "sawtooth";
+      lead.frequency.setValueAtTime(random(180, 230), t);
+      lead.frequency.exponentialRampToValueAtTime(random(920, 1180), t + 0.36);
+
+      const layer = c.createOscillator();
+      layer.type = "square";
+      layer.frequency.setValueAtTime(random(140, 180), t);
+      layer.frequency.exponentialRampToValueAtTime(random(690, 860), t + 0.35);
+
+      const gain = c.createGain();
+      gain.gain.setValueAtTime(0.0001, t);
+      gain.gain.exponentialRampToValueAtTime(0.4, t + 0.03);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.44);
+
+      const sweep = c.createBiquadFilter();
+      sweep.type = "bandpass";
+      sweep.frequency.setValueAtTime(300, t);
+      sweep.frequency.exponentialRampToValueAtTime(2600, t + 0.42);
+      sweep.Q.value = 1.8;
+
+      const dist = this.createDistortion(180);
+      lead.connect(sweep);
+      layer.connect(sweep);
+      sweep.connect(dist);
+      dist.connect(gain);
+      gain.connect(this.master);
+
+      lead.start(t);
+      layer.start(t);
+      lead.stop(t + 0.48);
+      layer.stop(t + 0.48);
+    }
+
+    playGameOver() {
+      const c = this.ensureContext();
+      if (!c) return;
+
+      const t = c.currentTime + 0.001;
+
+      const down = c.createOscillator();
+      down.type = "sawtooth";
+      down.frequency.setValueAtTime(240, t);
+      down.frequency.exponentialRampToValueAtTime(42, t + 0.95);
+      down.frequency.linearRampToValueAtTime(0.0001, t + 1.35);
+
+      const sub = c.createOscillator();
+      sub.type = "sine";
+      sub.frequency.setValueAtTime(110, t);
+      sub.frequency.exponentialRampToValueAtTime(28, t + 1.2);
+      sub.frequency.linearRampToValueAtTime(0.0001, t + 1.45);
+
+      const toneGain = c.createGain();
+      toneGain.gain.setValueAtTime(0.0001, t);
+      toneGain.gain.exponentialRampToValueAtTime(0.54, t + 0.018);
+      toneGain.gain.exponentialRampToValueAtTime(0.0001, t + 1.45);
+
+      const toneFilter = c.createBiquadFilter();
+      toneFilter.type = "lowpass";
+      toneFilter.frequency.setValueAtTime(1600, t);
+      toneFilter.frequency.exponentialRampToValueAtTime(80, t + 1.4);
+      toneFilter.Q.value = 1.2;
+
+      const toneDist = this.createDistortion(220);
+      down.connect(toneFilter);
+      sub.connect(toneFilter);
+      toneFilter.connect(toneDist);
+      toneDist.connect(toneGain);
+      toneGain.connect(this.master);
+
+      const noise = c.createBufferSource();
+      noise.buffer = this.noiseBuffer || this.createNoiseBuffer();
+
+      const noiseFilter = c.createBiquadFilter();
+      noiseFilter.type = "bandpass";
+      noiseFilter.frequency.setValueAtTime(3200, t);
+      noiseFilter.frequency.exponentialRampToValueAtTime(240, t + 1.4);
+      noiseFilter.Q.value = 0.9;
+
+      const noiseGain = c.createGain();
+      noiseGain.gain.setValueAtTime(0.0001, t);
+      noiseGain.gain.exponentialRampToValueAtTime(0.26, t + 0.035);
+      noiseGain.gain.exponentialRampToValueAtTime(0.0001, t + 1.5);
+
+      noise.connect(noiseFilter);
+      noiseFilter.connect(noiseGain);
+      noiseGain.connect(this.master);
+
+      down.start(t);
+      sub.start(t);
+      noise.start(t);
+
+      down.stop(t + 1.5);
+      sub.stop(t + 1.5);
+      noise.stop(t + 1.55);
+    }
+  }
+
+  class VisualSyncManager {
+    constructor(root) {
+      this.root = root;
+      this.pulseTimer = 0;
+      this.rgbTimer = 0;
+      if (this.root) this.root.classList.add("game-console");
+    }
+
+    syncTheme(canvasTheme) {
+      if (!this.root || !canvasTheme) return;
+      this.root.style.setProperty("--pulse-flash-a", canvasTheme.paddleCpu || canvasTheme.net || "#00f3ff");
+      this.root.style.setProperty("--pulse-flash-b", canvasTheme.paddlePlayer || canvasTheme.ball || "#ff00ff");
+    }
+
+    pulseKick(primary, secondary) {
+      if (!this.root) return;
+      if (primary) this.root.style.setProperty("--pulse-flash-a", primary);
+      if (secondary) this.root.style.setProperty("--pulse-flash-b", secondary);
+
+      this.root.classList.remove("kick-pulse");
+      void this.root.offsetWidth;
+      this.root.classList.add("kick-pulse");
+
+      clearTimeout(this.pulseTimer);
+      this.pulseTimer = window.setTimeout(() => {
+        this.root.classList.remove("kick-pulse");
+      }, 56);
+    }
+
+    triggerRgbSplit() {
+      if (!this.root) return;
+      this.root.classList.remove("ui-rgb-split");
+      void this.root.offsetWidth;
+      this.root.classList.add("ui-rgb-split");
+
+      clearTimeout(this.rgbTimer);
+      this.rgbTimer = window.setTimeout(() => {
+        this.root.classList.remove("ui-rgb-split");
+      }, 90);
+    }
+  }
+
+  class ToxicAnnouncer {
+    constructor() {
+      this.enabled = "speechSynthesis" in window && "SpeechSynthesisUtterance" in window;
+      this.voice = null;
+      this.cooldownMs = 120;
+      this.lastSpokenAt = 0;
+      this.startLines = [
+        "System initialized. Try not to embarrass yourself.",
+        "Loading unfair protocols..."
+      ];
+      this.missLines = [
+        "Pathetic.",
+        "Calculated.",
+        "Too slow, human.",
+        "Skill issue detected.",
+        "Lag? No, just you."
+      ];
+      this.highScoreLine = "Glitch detected. Anomalous performance.";
+
+      if (this.enabled) {
+        this.selectVoice();
+        window.speechSynthesis.addEventListener("voiceschanged", () => this.selectVoice());
+      }
+    }
+
+    selectVoice() {
+      if (!this.enabled) return;
+      const voices = window.speechSynthesis.getVoices();
+      if (!Array.isArray(voices) || voices.length === 0) return;
+
+      const englishVoices = voices.filter((v) => /^en/i.test(v.lang || ""));
+      const pool = englishVoices.length > 0 ? englishVoices : voices;
+      const preferred = [
+        /robot/i,
+        /synth/i,
+        /zira|david|mark|guy|james/i,
+        /microsoft/i,
+        /google/i
+      ];
+
+      let chosen = null;
+      for (const re of preferred) {
+        chosen = pool.find((v) => re.test(v.name));
+        if (chosen) break;
+      }
+
+      this.voice = chosen || pool[0];
+    }
+
+    speak(line, { priority = false, delayMs = 0 } = {}) {
+      if (!this.enabled || !line) return;
+      const run = () => {
+        const synth = window.speechSynthesis;
+        const now = performance.now();
+        if (!priority && now - this.lastSpokenAt < this.cooldownMs) return;
+        this.lastSpokenAt = now;
+
+        const utter = new SpeechSynthesisUtterance(line);
+        utter.pitch = 0.8;
+        utter.rate = 1.2;
+        utter.volume = 0.95;
+        if (this.voice) utter.voice = this.voice;
+
+        if (priority) synth.cancel();
+        synth.speak(utter);
+      };
+
+      if (delayMs > 0) {
+        window.setTimeout(run, delayMs);
+      } else {
+        run();
+      }
+    }
+
+    announceStart() {
+      this.speak(pick(this.startLines), { priority: true });
+    }
+
+    announceMiss() {
+      this.speak(pick(this.missLines), { priority: true });
+    }
+
+    announceHighScore() {
+      this.speak(this.highScoreLine, { delayMs: 260 });
     }
   }
 
@@ -674,6 +1069,8 @@
 
   function startGame() {
     if (state.running) return;
+    soundManager.unlock();
+    announcer.announceStart();
     state.running = true;
     setOverlay("", "", false);
     if (ball.vx === 0 && ball.vy === 0) resetServe(undefined, true);
@@ -987,10 +1384,15 @@
     stopGame();
     ball.vx = 0;
     ball.vy = 0;
+    soundManager.playGameOver();
+    uiFx.triggerRgbSplit();
+    announcer.announceMiss();
 
-    if (state.returnCount > state.bestCount) {
+    const isNewBest = state.returnCount > state.bestCount;
+    if (isNewBest) {
       state.bestCount = state.returnCount;
       flashHudValue(bestCountEl);
+      announcer.announceHighScore();
     }
 
     pushRanking(state.returnCount);
@@ -1054,11 +1456,15 @@
     if (ball.y - half < 0) {
       ball.y = half;
       ball.vy *= -1;
+      soundManager.playWallHit();
+      uiFx.triggerRgbSplit();
     }
 
     if (ball.y + half > H) {
       ball.y = H - half;
       ball.vy *= -1;
+      soundManager.playWallHit();
+      uiFx.triggerRgbSplit();
     }
 
     if (ball.vx < 0 && paddleCollision(player)) {
@@ -1066,6 +1472,8 @@
       const prevVY = ball.vy;
       ball.x = player.x + player.w + half;
       bounceFromPaddle(player, true);
+      soundManager.playPaddleHit();
+      uiFx.pulseKick(canvasTheme.paddlePlayer, canvasTheme.paddleCpu);
       createWhipTrail(prevVX, prevVY, ball.vx, ball.vy);
       createParticles(dt, 2.6);
 
@@ -1087,6 +1495,8 @@
       const prevVY = ball.vy;
       ball.x = cpu.x - half;
       bounceFromPaddle(cpu, false);
+      soundManager.playPaddleHit();
+      uiFx.pulseKick(canvasTheme.paddleCpu, canvasTheme.paddlePlayer);
 
       const boost = getBoost();
       state.speedMultiplier *= boost;
@@ -1103,7 +1513,11 @@
     }
 
     if (ball.x + half < 0) onGameOver();
-    if (ball.x - half > W) resetServe(-1, false);
+    if (ball.x - half > W) {
+      soundManager.playScorePoint();
+      uiFx.triggerRgbSplit();
+      resetServe(-1, false);
+    }
   }
 
   function drawBloom(x, y, radius, color) {
@@ -1439,7 +1853,15 @@
     return ((clientY - rect.top) / rect.height) * H;
   }
 
+  function primeAudio() {
+    soundManager.unlock();
+  }
+
+  window.addEventListener("pointerdown", primeAudio, { passive: true });
+  window.addEventListener("touchstart", primeAudio, { passive: true });
+
   window.addEventListener("keydown", (e) => {
+    primeAudio();
     const k = e.key.toLowerCase();
     if (k === "arrowup" || k === "w") {
       keys.up = true;
@@ -1471,6 +1893,7 @@
   });
 
   canvas.addEventListener("touchstart", (e) => {
+    primeAudio();
     pointerActive = true;
     pointerY = pointerToCanvasY(e.touches[0].clientY);
     e.preventDefault();
@@ -1487,12 +1910,16 @@
   });
 
   startBtn.addEventListener("click", () => {
+    primeAudio();
     if (state.running) return;
     if (ball.vx === 0 && ball.vy === 0) resetServe(undefined, true);
     startGame();
   });
 
-  restartBtn.addEventListener("click", restartGame);
+  restartBtn.addEventListener("click", () => {
+    primeAudio();
+    restartGame();
+  });
 
   unfairBtn.addEventListener("mouseenter", () => {
     unfairHovering = true;
@@ -1505,6 +1932,7 @@
   });
 
   unfairBtn.addEventListener("click", () => {
+    primeAudio();
     toggleChaosMode();
     if (!state.running) {
       const text = state.chaosMode
@@ -1549,6 +1977,10 @@
       importRankingInput.value = "";
     }
   });
+
+  soundManager = new SoundManager();
+  announcer = new ToxicAnnouncer();
+  uiFx = new VisualSyncManager(appRoot);
 
   themeManager = new ThemeManager();
   themeManager.apply(new Date());

@@ -23,6 +23,8 @@
   --label-gray: #888888;
   --core-inner: rgba(0, 243, 255, 0.38);
   --core-outer: rgba(255, 0, 255, 0.28);
+  --pulse-flash-a: rgba(0, 243, 255, 0.88);
+  --pulse-flash-b: rgba(255, 0, 255, 0.88);
 
   --jitter-x: 0px;
   --jitter-y: 0px;
@@ -275,6 +277,9 @@ body.theme-april-fools {
     -2px 0 rgba(255, 0, 255, 0.3),
     2px 0 rgba(0, 243, 255, 0.34);
   animation: rgb-split 2.3s steps(2, end) infinite;
+  transition: transform 50ms ease-out, scale 50ms ease-out, box-shadow 120ms ease-out;
+  transform-origin: center;
+  will-change: transform, box-shadow, scale;
 }
 
 .app::before,
@@ -325,6 +330,39 @@ body.theme-april-fools {
 
 body.window-vibe .app {
   animation: window-vibe 210ms steps(2, end) infinite, rgb-split 2.3s steps(2, end) infinite;
+}
+
+.game-console.kick-pulse {
+  scale: 1.02;
+  box-shadow:
+    0 0 0 2px rgba(255, 0, 255, 0.55) inset,
+    0 0 44px rgba(0, 243, 255, 0.5),
+    -2px 0 rgba(255, 0, 255, 0.34),
+    2px 0 rgba(0, 243, 255, 0.38),
+    0 0 38px var(--pulse-flash-a),
+    0 0 58px var(--pulse-flash-b);
+}
+
+.game-console.kick-pulse::before {
+  opacity: 0.94;
+}
+
+.game-console.kick-pulse::after {
+  opacity: 0.82;
+}
+
+.game-console.ui-rgb-split .main-title,
+.game-console.ui-rgb-split .eyebrow,
+.game-console.ui-rgb-split .subtitle,
+.game-console.ui-rgb-split #themeName,
+.game-console.ui-rgb-split .stat span,
+.game-console.ui-rgb-split .stat strong,
+.game-console.ui-rgb-split .controls button,
+.game-console.ui-rgb-split .ranking h2,
+.game-console.ui-rgb-split .ranking li,
+.game-console.ui-rgb-split .overlay-card h2,
+.game-console.ui-rgb-split .overlay-card p {
+  animation: ui-rgb-hit 90ms steps(2, end) 1;
 }
 
 .topbar {
@@ -954,6 +992,31 @@ body.window-vibe .app {
       0 0 34px rgba(255, 0, 255, 0.34),
       -3px 0 rgba(255, 0, 255, 0.34),
       3px 0 rgba(0, 243, 255, 0.3);
+  }
+}
+
+@keyframes ui-rgb-hit {
+  0% {
+    transform: translate(0, 0);
+    text-shadow:
+      -1px 0 rgba(0, 243, 255, 0.72),
+      1px 0 rgba(255, 0, 255, 0.72);
+    filter: saturate(1.08);
+  }
+  45% {
+    transform: translate(-1px, 0);
+    text-shadow:
+      -3px 0 rgba(0, 243, 255, 0.9),
+      3px 0 rgba(255, 0, 255, 0.9),
+      0 0 10px rgba(255, 255, 255, 0.34);
+    filter: saturate(1.34);
+  }
+  100% {
+    transform: translate(1px, 0);
+    text-shadow:
+      2px 0 rgba(0, 243, 255, 0.75),
+      -2px 0 rgba(255, 0, 255, 0.75);
+    filter: saturate(1.15);
   }
 }
 
