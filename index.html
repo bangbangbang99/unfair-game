@@ -1,90 +1,61 @@
 <!doctype html>
-<html lang="ko">
+<html lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>THE UNFAIR GAME // GLITCH ARCADE</title>
-
-  <meta property="og:title" content="THE UNFAIR GAME // GLITCH ARCADE" />
-  <meta property="og:description" content="네온에 절여진 불합리 퐁. 버틸 수 있으면 버텨봐." />
-  <meta property="og:image" content="https://unfair-game.netlify.app/og.png" />
-  <meta property="og:type" content="website" />
+  <title>THE UNFAIR GAME</title>
 
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=JetBrains+Mono:wght@500;700;800&family=Fira+Code:wght@500;700&family=Noto+Sans+KR:wght@700;900&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Russo+One&family=Fira+Code:wght@500;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="styles.css" />
 </head>
-<body class="theme-cyberpunk">
-  <main class="app game-console" id="appRoot">
-    <header class="topbar">
-      <div class="title-wrap">
-        <p class="eyebrow">RETRO GLITCH CONSOLE</p>
-        <h1 id="mainTitle" class="main-title" data-text="THE UNFAIR GAME">THE UNFAIR GAME</h1>
-        <p class="subtitle">절대 못 깨는 불합리한 Pong</p>
-      </div>
-      <div class="theme-pill" id="themeName" aria-live="polite">SYNCING THEME...</div>
+<body>
+  <div class="world-container" aria-hidden="true">
+    <div class="grid-floor"></div>
+  </div>
+
+  <main class="game-container" id="appRoot">
+    <header class="retro-header">
+      <h1>THE UNFAIR GAME</h1>
+      <p>HIGH-END RETRO PONG</p>
     </header>
 
-    <section class="hud" aria-label="게임 정보">
-      <article class="stat">
-        <span>CURRENT RETURNS</span>
-        <strong id="returnCount">0</strong>
+    <section class="hud" aria-label="Game HUD">
+      <article class="hud-item">
+        <span>RALLY</span>
+        <strong id="rallyCount">0</strong>
       </article>
-      <article class="stat">
-        <span>BEST SCORE</span>
+      <article class="hud-item">
+        <span>BEST</span>
         <strong id="bestCount">0</strong>
       </article>
-      <article class="stat">
-        <span>SPEED MULTIPLIER</span>
-        <strong id="speedMult">x1</strong>
+      <article class="hud-item">
+        <span>SPEED</span>
+        <strong id="speedMult">1.00x</strong>
       </article>
-      <article class="stat controls-inline">
-        <span>BOOST RULE</span>
-        <label>
-          <input id="boostInput" class="boost-input" type="number" min="1.01" step="0.01" value="1.10" />
-          X
-        </label>
+      <article class="hud-item">
+        <span>PHASE</span>
+        <strong id="phaseLabel">RETRO</strong>
       </article>
     </section>
 
-    <section class="controls" aria-label="게임 제어">
-      <button id="startBtn" type="button">START SIGNAL</button>
-      <button id="restartBtn" type="button">REBOOT ROUND</button>
-      <button
-        id="unfairBtn"
-        type="button"
-        data-default-text="DON'T CLICK ME"
-        data-hover-text="DON'T CLICK ME"
-      >
-        DON'T CLICK ME
-      </button>
-      <button id="exportRankingBtn" type="button">EXPORT LOG</button>
-      <button id="importRankingBtn" type="button">IMPORT LOG</button>
-      <input id="importRankingInput" type="file" accept="application/json,.json" hidden />
-    </section>
-
-    <section class="content-grid">
-      <section class="stage-wrap" aria-label="게임 스테이지">
-        <div class="canvas-shell">
-          <canvas id="gameCanvas" width="960" height="540" aria-label="Pong 게임 캔버스"></canvas>
-          <div id="chaosEmoji" class="chaos-emoji" aria-hidden="true"></div>
-          <div id="chaosHint" class="chaos-hint" aria-hidden="true">CONTROL INVERTED</div>
-        </div>
+    <section class="stage-wrap">
+      <div class="stage" id="stage">
+        <canvas id="gameCanvas" width="960" height="540" aria-label="Pong stage"></canvas>
+        <div id="trailLayer" class="trail-layer" aria-hidden="true"></div>
+        <div id="ball" class="ball" aria-hidden="true"></div>
 
         <div id="overlay" class="overlay show">
-          <div class="overlay-card">
-            <h2 id="overlayTitle">START SIGNAL을 눌러 시작</h2>
-            <p id="overlayText">PC: 화살표/W/S, 마우스 이동 | 모바일: 터치 드래그</p>
-          </div>
+          <h2 id="overlayTitle">PRESS START</h2>
+          <p id="overlayText">W/S or UP/DOWN to move. First to miss loses.</p>
         </div>
-      </section>
+      </div>
+    </section>
 
-      <aside class="ranking" aria-label="랭킹">
-        <h2>LEADERBOARD</h2>
-        <ol id="rankingList"></ol>
-        <p class="ranking-help">게임 오버 시 자동 저장. 브라우저 로컬 저장소 기준.</p>
-      </aside>
+    <section class="controls" aria-label="Game controls">
+      <button id="startBtn" type="button">START</button>
+      <button id="restartBtn" type="button">RESTART</button>
     </section>
   </main>
 
